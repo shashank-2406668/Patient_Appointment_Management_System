@@ -1,0 +1,234 @@
+﻿@{
+    Layout = null; // This page is self-contained
+    ViewData["Title"] = "Book Appointment";
+}
+
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>@ViewData["Title"]</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.min.css">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        $(document).ready(function () {
+            // Get the current date in YYYY-MM-DD format
+            const today = new Date().toISOString().split('T')[0];
+
+            // Set the minimum date for the appointment date input to today
+            $("#appointmentDate").attr("min", today);
+
+            // Prevent manual input in the date field
+            $("#appointmentDate").on("keydown", function(event) {
+                event.preventDefault();
+            });
+
+            // Optional: You can also prevent pasting
+            $("#appointmentDate").on("paste", function(event) {
+                event.preventDefault();
+            });
+
+            // Populate doctor list (currently static)
+            var doctors = ["Dr. Vishnu (Cardiologist)", "Dr. Adhitya (General Physician)", "Dr. Sheshank (Dermatologist)"];
+            var doctorSelect = $("#doctor");
+            $.each(doctors, function (index, value) {
+                doctorSelect.append($('<option>', {
+                    value: value, // Consider using Doctor IDs here later
+                    text: value
+                }));
+            });
+
+            // Handle form submission (client-side only for now)
+            $("#appointmentForm").submit(function (event) {
+                event.preventDefault(); // Prevent default form submission for now
+                var doctor = $("#doctor").val();
+                var date = $("#appointmentDate").val();
+                var timeSlot = $("input[name='timeSlot']:checked").val();
+                var issue = $("#issue").val();
+
+                if (!date) {
+                    alert("Please select an appointment date from the calendar.");
+                    return;
+                }
+
+                if (!timeSlot) {
+                    alert("Please select a time slot.");
+                    return;
+                }
+
+                // This alert will be replaced by actual server-side submission later
+                alert("CLIENT-SIDE SUBMISSION:\nAppointment request details:\nDoctor: " + doctor + "\nDate: " + date + "\nTime Slot: " + timeSlot + "\nIssue: " + issue + "\n\nNOTE: This data is NOT yet saved to the server.");
+
+                // TODO: Eventually, you will remove the alert above and let the form submit
+                // to the server, or use AJAX to submit the data.
+            });
+        });
+    </script>
+    <style>
+        body {
+            background: linear-gradient(to bottom, #e3f2fd, #bbdefb);
+            font-family: 'Arial', sans-serif;
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+        }
+
+        .appointment-form {
+            background-color: #ffffff;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            margin-top: 30px;
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+
+            .appointment-form:hover {
+                transform: translateY(-5px);
+                box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2);
+            }
+
+            .appointment-form h2 {
+                margin-bottom: 20px;
+                text-align: center;
+                color: #007bff;
+            }
+
+        .form-label {
+            font-weight: bold;
+            color: #555;
+        }
+
+        .btn-primary {
+            background-color: #007bff;
+            border: none;
+        }
+
+            .btn-primary:hover {
+                background-color: #0056b3;
+            }
+
+        .btn-secondary {
+            background-color: #6c757d;
+            border: none;
+        }
+
+            .btn-secondary:hover {
+                background-color: #5a6268;
+            }
+
+        .time-slot {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+            .time-slot .form-check {
+                flex: 1 1 calc(50% - 10px); /* Adjust for 2 columns */
+            }
+
+        /* Simple Navbar styling if you want to add one later */
+        .navbar-custom {
+            background-color: #007bff; /* Example color */
+            padding: 1rem;
+        }
+
+            .navbar-custom .navbar-brand,
+            .navbar-custom .nav-link {
+                color: white;
+            }
+
+                .navbar-custom .nav-link:hover {
+                    color: #d1ecf1;
+                }
+
+    </style>
+</head>
+<body>
+    <!-- Optional: Basic Navbar (You can integrate with your patient layout later) -->
+    <nav class="navbar navbar-expand-lg navbar-custom">
+        <div class="container-fluid">
+            <a class="navbar-brand" asp-controller="Patient" asp-action="PatientDashboard">Patient Portal</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNavBookAppointment">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNavBookAppointment">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" asp-controller="Patient" asp-action="PatientDashboard">Back to Dashboard</a>
+                    </li>
+                    @* If you have a logout mechanism, add it here similar to PatientDashboard *@
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-5">
+        <div class="row justify-content-center">
+            <div class="col-md-8 col-lg-7 appointment-form">
+                <h2><i class="bi bi-calendar-plus me-2"></i>Book an Appointment</h2>
+                <hr class="mb-4">
+                <!-- IMPORTANT: The form will submit to a POST action in PatientController later -->
+                <!-- For now, JavaScript handles the submit event client-side -->
+                <form id="appointmentForm">
+                    @* Add @Html.AntiForgeryToken() here once you handle server-side POST *@
+                    <div class="mb-3">
+                        <label for="doctor" class="form-label">Select Doctor:</label>
+                        <select class="form-select" id="doctor" name="Doctor" required>
+                            @* Added name attribute *@
+                            <option value="" disabled selected>Select a doctor</option>
+                            <!-- Doctors will be populated by JavaScript -->
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="appointmentDate" class="form-label">Appointment Date:</label>
+                        <input type="date" class="form-control" id="appointmentDate" name="AppointmentDate" required> @* Added name attribute *@
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Select Time Slot:</label>
+                        <div class="time-slot">
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="TimeSlot" id="slot1" value="9:00 AM - 10:00 AM" required> @* Added name attribute & required to one *@
+                                <label class="form-check-label" for="slot1">9:00 AM - 10:00 AM</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="TimeSlot" id="slot2" value="10:00 AM - 11:00 AM">
+                                <label class="form-check-label" for="slot2">10:00 AM - 11:00 AM</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="TimeSlot" id="slot3" value="12:00 PM - 1:00 PM">
+                                <label class="form-check-label" for="slot3">12:00 PM - 1:00 PM</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="TimeSlot" id="slot4" value="3:00 PM - 4:00 PM">
+                                <label class="form-check-label" for="slot4">3:00 PM - 4:00 PM</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="TimeSlot" id="slot5" value="4:00 PM - 5:00 PM">
+                                <label class="form-check-label" for="slot5">4:00 PM - 5:00 PM</label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="issue" class="form-label">Brief Description of Issue:</label>
+                        <textarea class="form-control" id="issue" name="Issue" rows="3" placeholder="Please describe your medical issue briefly" required></textarea> @* Added name attribute *@
+                    </div>
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-check-circle me-1"></i>Request Appointment</button>
+
+                    <!-- Updated "Back to Dashboard" link using Tag Helpers -->
+                    <a asp-controller="Patient" asp-action="PatientDashboard" class="btn btn-secondary btn-sm ms-2 float-end">
+                        <i class="bi bi-arrow-left me-1"></i>Back to Dashboard
+                    </a>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Optional Footer -->
+    <footer class="text-center p-3 mt-5" style="background-color: rgba(0,0,0,0.05);">
+        &copy; @DateTime.Now.Year HS Hospital. All rights reserved.
+    </footer>
+</body>
+</html>

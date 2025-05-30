@@ -1,0 +1,84 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - HS Hospital</title> 
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Link to your site's custom CSS if you have one in wwwroot/css/site.css -->
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    <!-- You can also link to the specific styles from your original HTML if they are unique to all pages -->
+    <style>
+        /* Minimal shared styles, or move page-specific styles to Index.cshtml */
+        body {
+            font-family: 'Arial', sans-serif;
+            /* Consider moving background to site.css or specific views if it varies */
+        }
+
+        .hospital-logo {
+            width: 80px; /* Or your desired size */
+            margin-right: 15px;
+        }
+
+        footer { /* Shared footer style */
+            background: linear-gradient(135deg, #6610f2, #007bff);
+            color: white;
+            padding: 15px 0;
+        }
+    </style>
+        @await RenderSectionAsync("Styles", required: false) <!-- For page-specific styles -->
+</head>
+<body>
+    <header>
+        <nav class="navbar navbar-expand-sm navbar-dark bg-primary">
+            <div class="container-fluid">
+                <a class="navbar-brand" asp-controller="Home" asp-action="Index">
+                    <!-- Use Tag Helpers for links -->
+                    <img src="https://www.creativefabrica.com/wp-content/uploads/2018/11/Hospital-logo-by-meisuseno-5.jpg" alt="Hospital Logo" class="rounded-pill hospital-logo">
+                    HS Hospital
+                </a>
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+                <div class="collapse navbar-collapse" id="navbarNav">
+                    <ul class="navbar-nav me-auto">
+                        <li class="nav-item">
+                            <!-- Example: Update these links if they go to actual pages/actions -->
+                            <a class="nav-link" href="#">Bengaluru</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#">Chennai</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#">Hyderabad</a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </nav>
+    </header>
+
+    <div class="container">
+        <!-- Main content container -->
+        <main role="main" class="pb-3">
+            @RenderBody() <!-- This is where the content of Index.cshtml will be injected -->
+        </main>
+    </div>
+
+    <footer class="text-center mt-5 border-top footer text-muted">
+        <!-- Added border-top and text-muted for standard layout feel -->
+        <div class="container">
+            &copy; @DateTime.Now.Year - HS Hospital Bangalore. All rights reserved.
+            <!-- If you have a privacy page linked from default template -->
+            <!-- <a asp-area="" asp-controller="Home" asp-action="Privacy">Privacy</a> -->
+        </div>
+    </footer>
+
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Link to your site's custom JS if you have one in wwwroot/js/site.js -->
+    <script src="~/js/site.js" asp-append-version="true"></script>
+
+    @await RenderSectionAsync("Scripts", required: false) <!-- For page-specific scripts -->
+</body>
+</html>

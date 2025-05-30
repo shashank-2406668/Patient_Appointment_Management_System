@@ -1,0 +1,166 @@
+﻿@model Patient_Appointment_Management_System.ViewModels.PatientRegisterViewModel
+@{
+    Layout = null; // Assuming no master layout for this page
+    ViewData["Title"] = "Patient Registration";
+
+    // Data for Country Code dropdown (can also be passed from controller via ViewBag/Model)
+    var countryCodes = new List<SelectListItem> {
+        new SelectListItem { Value = "", Text = "Select Country Code", Disabled = true, Selected = true},
+        new SelectListItem { Value = "+91", Text = "India (🇮🇳 +91)" },
+        new SelectListItem { Value = "+1", Text = "United States (🇺🇸 +1)" },
+        new SelectListItem { Value = "+44", Text = "United Kingdom (🇬🇧 +44)" },
+        new SelectListItem { Value = "+81", Text = "Japan (🇯🇵 +81)" },
+        new SelectListItem { Value = "+86", Text = "China (🇨🇳 +86)" },
+        new SelectListItem { Value = "+61", Text = "Australia (🇦🇺 +61)" },
+        new SelectListItem { Value = "+82", Text = "South Korea (🇰🇷 +82)" },
+        new SelectListItem { Value = "+33", Text = "France (🇫🇷 +33)" },
+        new SelectListItem { Value = "+49", Text = "Germany (🇩🇪 +49)" },
+        new SelectListItem { Value = "+55", Text = "Brazil (🇧🇷 +55)" },
+    };
+}
+
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>@ViewData["Title"]</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+
+        .container {
+            margin-top: 20px;
+            margin-bottom: 20px;
+        }
+        /* Adjusted margin */
+        .card {
+            border-radius: 0.5rem;
+        }
+
+        .card-body {
+            padding: 1.5rem;
+        }
+        /* Adjusted padding */
+        .form-control-sm {
+            font-size: 0.875rem;
+        }
+
+        .phone-group {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        #countryCode {
+            width: auto;
+        }
+
+        #phoneNumber {
+            flex-grow: 1;
+        }
+
+        #Address {
+            resize: vertical;
+        }
+
+        .field-validation-error {
+            color: #dc3545;
+            font-size: 0.875em;
+        }
+        /* For validation messages */
+        .input-validation-error {
+            border-color: #dc3545;
+        }
+        /* Highlight invalid inputs */
+    </style>
+</head>
+<body class="bg-light">
+    <div class="container py-4">
+        <div class="row d-flex justify-content-center">
+            <div class="col-md-8 col-lg-7 col-xl-6">
+                @* Adjusted column width for better fit *@
+                <div class="card shadow-lg">
+                    <div class="card-body">
+                        <h3 class="mb-4 text-center">Patient Registration</h3>
+
+                        @* Form posts to /Patient/PatientRegister *@
+                        <form asp-controller="Patient" asp-action="PatientRegister" method="post">
+                            @Html.AntiForgeryToken() @* For CSRF protection *@
+
+                            @* Optional: Display all model-level errors *@
+                            @* <div asp-validation-summary="ModelOnly" class="alert alert-danger"></div> *@
+
+                            <div class="mb-3">
+                                <label asp-for="Name" class="form-label small text-muted"></label>
+                                <input asp-for="Name" class="form-control form-control-sm" placeholder="Full Name" />
+                                <span asp-validation-for="Name" class="field-validation-error"></span>
+                            </div>
+
+                            <div class="mb-3">
+                                <label asp-for="Dob" class="form-label small text-muted"></label>
+                                <input asp-for="Dob" type="date" class="form-control form-control-sm" />
+                                <span asp-validation-for="Dob" class="field-validation-error"></span>
+                            </div>
+
+                            <div class="mb-3">
+                                <label asp-for="Email" class="form-label small text-muted"></label>
+                                <input asp-for="Email" class="form-control form-control-sm" placeholder="Email Address" />
+                                <span asp-validation-for="Email" class="field-validation-error"></span>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label small text-muted">Phone Number</label>
+                                <div class="phone-group">
+                                    <select asp-for="CountryCode" asp-items="countryCodes" class="form-select form-select-sm">
+                                    </select>
+                                    <input asp-for="PhoneNumber" type="tel" class="form-control form-control-sm" placeholder="10-digit Phone No" />
+                                </div>
+                                <span asp-validation-for="CountryCode" class="field-validation-error d-block"></span>
+                                <span asp-validation-for="PhoneNumber" class="field-validation-error d-block"></span>
+                                <small class="form-text text-muted">Select country and enter 10-digit phone number.</small>
+                            </div>
+
+                            <div class="mb-3">
+                                <label asp-for="Address" class="form-label small text-muted"></label>
+                                <textarea asp-for="Address" class="form-control form-control-sm" rows="3" placeholder="Enter your address"></textarea>
+                                <span asp-validation-for="Address" class="field-validation-error"></span>
+                            </div>
+
+                            <div class="mb-3">
+                                <label asp-for="Password" class="form-label small text-muted"></label>
+                                <input asp-for="Password" type="password" class="form-control form-control-sm" placeholder="Password" />
+                                <span asp-validation-for="Password" class="field-validation-error"></span>
+                            </div>
+
+                            <div class="mb-3">
+                                <label asp-for="ConfirmPassword" class="form-label small text-muted"></label>
+                                <input asp-for="ConfirmPassword" type="password" class="form-control form-control-sm" placeholder="Confirm Password" />
+                                <span asp-validation-for="ConfirmPassword" class="field-validation-error"></span>
+                            </div>
+
+                            <button class="btn btn-success btn-sm w-100 mt-2" type="submit">Register</button>
+                            <div class="mt-3 text-center">
+                                <p class="mb-0 small">Already have an account? <a asp-controller="Patient" asp-action="PatientLogin" class="text-primary fw-bold">Login here</a></p>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+    @* Include jQuery Validate and Unobtrusive for client-side validation *@
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-validate/1.19.5/jquery.validate.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-validation-unobtrusive/3.2.12/jquery.validate.unobtrusive.min.js"></script>
+    @*
+    Removed your custom jQuery form submission script.
+    ASP.NET Core's unobtrusive validation will handle client-side checks based on ViewModel attributes.
+    The form will submit directly to the server action.
+    *@
+</body>
+</html>

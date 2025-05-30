@@ -1,0 +1,170 @@
+﻿@model Patient_Appointment_Management_System.ViewModels.PatientProfileViewModel
+@{
+    Layout = null; // Assuming no master layout for this page
+    ViewData["Title"] = "Patient Profile";
+}
+
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>@ViewData["Title"]</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.min.css">
+    <style>
+        body {
+            background: linear-gradient(to bottom, #e3f2fd, #bbdefb);
+            font-family: Arial, sans-serif;
+        }
+
+        .profile-container {
+            background-color: #ffffff;
+            padding: 30px;
+            border-radius: 0.5rem;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            margin-top: 20px;
+            margin-bottom: 40px; /* Added margin for footer */
+        }
+
+            .profile-container h2 {
+                margin-bottom: 20px;
+                color: #007bff;
+            }
+
+        .form-label {
+            font-weight: bold;
+            color: #555;
+        }
+
+        .form-control:disabled {
+            background-color: #e9ecef;
+            cursor: not-allowed;
+        }
+
+        .btn-primary {
+            background-color: #007bff;
+            border-color: #007bff;
+        }
+
+            .btn-primary:hover {
+                background-color: #0056b3;
+                border-color: #0056b3;
+            }
+
+        .btn-secondary {
+            background-color: #6c757d;
+            border-color: #6c757d;
+        }
+
+            .btn-secondary:hover {
+                background-color: #545b62;
+                border-color: #4e555b;
+            }
+
+        .button-group {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 20px;
+        }
+
+        .field-validation-error {
+            color: #dc3545;
+            font-size: 0.875em;
+        }
+
+        .input-validation-error {
+            border-color: #dc3545;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-5">
+        <div class="row justify-content-center">
+            <div class="col-md-8 col-lg-7 profile-container">
+                @* Adjusted width for better fit *@
+                <h2><i class="bi bi-person-vcard me-2"></i>Patient Profile</h2>
+                <hr class="mb-4">
+
+                @if (TempData["ProfileUpdateMessage"] != null)
+                {
+                    <div class="alert alert-success alert-dismissible fade show" role="alert">
+                        @TempData["ProfileUpdateMessage"]
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                }
+
+                @* Form posts to /Patient/PatientProfile *@
+                <form asp-controller="Patient" asp-action="PatientProfile" method="post">
+                    @Html.AntiForgeryToken() @* For CSRF protection *@
+                    <div asp-validation-summary="ModelOnly" class="alert alert-danger"></div>
+
+
+                    <div class="mb-3">
+                        <label asp-for="Name" class="form-label"></label>
+                        <input asp-for="Name" class="form-control" disabled /> @* Start disabled *@
+                        <span asp-validation-for="Name" class="field-validation-error"></span>
+                    </div>
+                    <div class="mb-3">
+                        <label asp-for="Email" class="form-label"></label>
+                        <input asp-for="Email" type="email" class="form-control" disabled />
+                        <span asp-validation-for="Email" class="field-validation-error"></span>
+                    </div>
+                    <div class="mb-3">
+                        <label asp-for="Phone" class="form-label"></label>
+                        <input asp-for="Phone" type="tel" class="form-control" disabled />
+                        <span asp-validation-for="Phone" class="field-validation-error"></span>
+                    </div>
+                    <div class="mb-3">
+                        <label asp-for="Dob" class="form-label"></label>
+                        <input asp-for="Dob" type="date" class="form-control"
+                               asp-format="{0:yyyy-MM-dd}" disabled /> @* Ensure correct date format for input type=date *@
+                        <span asp-validation-for="Dob" class="field-validation-error"></span>
+                    </div>
+                    <div class="mb-3">
+                        <label asp-for="Address" class="form-label"></label>
+                        <textarea asp-for="Address" class="form-control" rows="3" disabled></textarea>
+                        <span asp-validation-for="Address" class="field-validation-error"></span>
+                    </div>
+
+                    <div class="button-group">
+                        <button type="submit" class="btn btn-primary" id="saveProfileBtn" style="display: none;"><i class="bi bi-save me-1"></i>Save Profile</button>
+                        <button type="button" class="btn btn-secondary" id="editProfileBtn"><i class="bi bi-pencil me-1"></i>Edit Profile</button>
+                        <a asp-controller="Patient" asp-action="PatientDashboard" class="btn btn-outline-secondary"><i class="bi bi-arrow-left me-1"></i>Back to Dashboard</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+    @* Include jQuery Validate and Unobtrusive for client-side validation when form is enabled *@
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-validate/1.19.5/jquery.validate.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-validation-unobtrusive/3.2.12/jquery.validate.unobtrusive.min.js"></script>
+
+    <script>
+        $(document).ready(function () {
+            // Initial state from server model, no need for localStorage for display
+            // The form elements are populated by asp-for and disabled by default.
+
+            $("#editProfileBtn").click(function () {
+                // Enable form fields for editing
+                $("#profileForm .form-control").prop("disabled", false);
+                $("#editProfileBtn").hide();
+                $("#saveProfileBtn").show();
+                $("#Name").focus(); // Focus on the first editable field (ensure ID matches asp-for generated ID)
+            });
+
+            // The "Save Profile" button is now a submit button for the form.
+            // Client-side validation will be handled by jQuery Unobtrusive Validation
+            // when fields are enabled and form is submitted.
+            // The localStorage saving logic from your original script is removed,
+            // as data will be posted to the server.
+
+            // The "Back to Dashboard" button is now an <a> tag with asp-controller/action.
+        });
+    </script>
+</body>
+</html>

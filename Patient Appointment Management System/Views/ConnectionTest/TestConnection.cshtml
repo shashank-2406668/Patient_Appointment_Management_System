@@ -1,0 +1,18 @@
+﻿@{
+    ViewData["Title"] = "Database Connection Test Result";
+}
+
+<h2>Database Connection Test Result</h2>
+
+<p>
+    @ViewBag.Message
+</p>
+
+@if (ViewBag.Message != null && ViewBag.Message.ToString().StartsWith("Successfully connected"))
+{
+    <p style="color: green; font-weight: bold;">Connection successful!</p>
+}
+else if (ViewBag.Message != null)
+{
+    <p style="color: red; font-weight: bold;">Connection failed or an issue occurred.</p>
+}
