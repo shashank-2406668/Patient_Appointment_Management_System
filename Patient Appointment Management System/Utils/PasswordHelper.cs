@@ -1,39 +1,74 @@
 ﻿// File: Patient_Appointment_Management_System/Utils/PasswordHelper.cs
+using System;
 using System.Security.Cryptography;
-using System.Text;
 
 namespace Patient_Appointment_Management_System.Utils
 {
     public static class PasswordHelper
     {
-        // IMPORTANT: For a real application, use a much stronger hashing algorithm
-        // like Argon2 or at least BCrypt (available via NuGet packages like BCrypt.Net-Next).
-        // SHA256 without salting is NOT secure enough for production. This is for demonstration.
+        private const int SaltSize = 16; // 128 bit
+        private const int KeySize = 32; // 256 bit
+        private const int Iterations = 10000; // .NET Core 3.1+ default is 10000, .NET 6+ is 100,000 for Identity
+        private static readonly HashAlgorithmName Algorithm = HashAlgorithmName.SHA256;
+        private const char SaltDelimiter = ';';
+
         public static string HashPassword(string password)
         {
             if (string.IsNullOrEmpty(password))
             {
-                // Consider throwing an ArgumentNullException or returning an empty string/null based on your policy
-                // For this example, let's throw as a password should not be empty
-                throw new ArgumentNullException(nameof(password), "Password cannot be null or empty.");
+                throw new ArgumentNullException(nameof(password));
             }
 
-            using (var sha256 = SHA256.Create())
-            {
-                // In a real app, you would also use a "salt" here.
-                var hashedBytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(password));
-                return BitConverter.ToString(hashedBytes).Replace("-", "").ToLowerInvariant();
-            }
+            byte[] salt = RandomNumberGenerator.GetBytes(SaltSize);
+            byte[] hash = Rfc2898DeriveBytes.Pbkdf2(
+                password,
+                salt,
+                Iterations,
+                Algorithm,
+                KeySize
+            );
+            return string.Join(SaltDelimiter, Convert.ToBase64String(salt), Convert.ToBase64String(hash));
         }
 
-        public static bool VerifyPassword(string enteredPassword, string storedHash)
+        public static bool VerifyPassword(string password, string hashedPassword)
         {
-            if (string.IsNullOrEmpty(enteredPassword) || string.IsNullOrEmpty(storedHash))
+            if (string.IsNullOrEmpty(password))
             {
-                return false; // Cannot verify if either is empty
+                throw new ArgumentNullException(nameof(password));
             }
-            // Hash the entered password using the same method and compare.
-            return HashPassword(enteredPassword) == storedHash;
+            if (string.IsNullOrEmpty(hashedPassword))
+            {
+                // Consider logging this event: attempt to verify against an empty hash.
+                return false;
+            }
+
+            string[] parts = hashedPassword.Split(SaltDelimiter);
+            if (parts.Length != 2)
+            {
+                // Log an error: invalid hash format
+                // This might happen if a non-hashed password or a hash in a different format is stored.
+                return false;
+            }
+
+            try
+            {
+                byte[] salt = Convert.FromBase64String(parts[0]);
+                byte[] hash = Convert.FromBase64String(parts[1]);
+
+                byte[] testHash = Rfc2898DeriveBytes.Pbkdf2(
+                    password,
+                    salt,
+                    Iterations,
+                    Algorithm,
+                    KeySize
+                );
+                return CryptographicOperations.FixedTimeEquals(hash, testHash);
+            }
+            catch (FormatException)
+            {
+                // Log an error: Base64 conversion failed, invalid hash format.
+                return false;
+            }
         }
     }
 }

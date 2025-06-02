@@ -10,6 +10,6 @@ namespace Patient_Appointment_Management_System.ViewModels
         public TimeSpan StartTime { get; set; }
         public TimeSpan EndTime { get; set; }
         public bool IsBooked { get; set; }
-        public string? PatientNameIfBooked { get; set; } // Nullable if not booked
+        public string? PatientNameIfBooked { get; set; } // Optional
     }
 }

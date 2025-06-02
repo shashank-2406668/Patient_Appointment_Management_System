@@ -12,7 +12,7 @@ using Patient_Appointment_Management_System.Data;
 namespace Patient_Appointment_Management_System.Migrations
 {
     [DbContext(typeof(PatientAppointmentDbContext))]
-    [Migration("20250529121638_InitialSchemaSetup")]
+    [Migration("20250602050805_InitialSchemaSetup")]
     partial class InitialSchemaSetup
     {
         /// <inheritdoc />

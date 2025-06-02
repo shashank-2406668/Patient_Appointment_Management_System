@@ -1,38 +1,37 @@
 ﻿// File: Patient_Appointment_Management_System/Controllers/PatientController.cs
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore; // For EF Core operations like ToListAsync, FirstOrDefaultAsync
-using Patient_Appointment_Management_System.Data; // Your DbContext namespace
-using Patient_Appointment_Management_System.Models; // Your EF Core Models (Patient, Appointment etc.)
-using Patient_Appointment_Management_System.Utils; // For PasswordHelper
-using Patient_Appointment_Management_System.ViewModels; // Your ViewModels
+using Microsoft.EntityFrameworkCore;
+using Patient_Appointment_Management_System.Data;
+using Patient_Appointment_Management_System.Models;
+using Patient_Appointment_Management_System.Utils;
+using Patient_Appointment_Management_System.ViewModels;
 using System.Diagnostics;
-using Microsoft.AspNetCore.Http; // For HttpContext.Session
+using Microsoft.AspNetCore.Http;
 using System;
 using System.Linq;
-using System.Threading.Tasks; // For asynchronous operations
+using System.Threading.Tasks;
+using Microsoft.AspNetCore.Mvc.Rendering; // For SelectList
+using System.Globalization; // For CultureInfo
 
 namespace Patient_Appointment_Management_System.Controllers
 {
     public class PatientController : Controller
     {
-        private readonly PatientAppointmentDbContext _context; // Inject the DbContext
-        private readonly ILogger<PatientController> _logger; // Optional: for logging
+        private readonly PatientAppointmentDbContext _context;
+        private readonly ILogger<PatientController> _logger;
 
-        // Constructor to inject DbContext and Logger
         public PatientController(PatientAppointmentDbContext context, ILogger<PatientController> logger)
         {
             _context = context;
             _logger = logger;
         }
 
-        // Removed: static List<PatientProfileViewModel> _patientProfiles and _nextPatientId
+        // ... (other actions like PatientRegister, PatientLogin, PatientDashboard, PatientProfile, PatientLogout remain the same) ...
 
         // === PATIENT REGISTRATION ===
         [HttpGet]
         public IActionResult PatientRegister()
         {
-            // The view path is inferred if it's in Views/Patient/PatientRegister.cshtml
-            // If it's in Views/Home/, keep the explicit path.
             return View("~/Views/Home/PatientRegister.cshtml", new PatientRegisterViewModel());
         }
 
@@ -42,29 +41,23 @@ namespace Patient_Appointment_Management_System.Controllers
         {
             if (ModelState.IsValid)
             {
-                // 1. Check if email already exists in the database
                 bool emailExists = await _context.Patients.AnyAsync(p => p.Email == model.Email);
                 if (emailExists)
                 {
                     ModelState.AddModelError("Email", "This email address is already registered.");
                     return View("~/Views/Home/PatientRegister.cshtml", model);
                 }
-
-                // 2. Create a new Patient ENTITY (from Models namespace)
-                var patient = new Patient // Using Models.Patient
+                var patient = new Patient
                 {
                     Name = model.Name,
                     Email = model.Email,
-                    PasswordHash = PasswordHelper.HashPassword(model.Password), // HASH THE PASSWORD
-                    Phone = model.CountryCode + model.PhoneNumber, // Combine if needed
+                    PasswordHash = PasswordHelper.HashPassword(model.Password),
+                    Phone = model.CountryCode + model.PhoneNumber,
                     Dob = model.Dob,
                     Address = model.Address
                 };
-
-                // 3. Add to DbContext and Save to Database
                 _context.Patients.Add(patient);
                 await _context.SaveChangesAsync();
-
                 _logger.LogInformation($"Patient registered successfully: {patient.Email}");
                 TempData["RegisterSuccessMessage"] = "Registration successful! Please log in.";
                 return RedirectToAction("PatientLogin");
@@ -79,7 +72,7 @@ namespace Patient_Appointment_Management_System.Controllers
             if (TempData["RegisterSuccessMessage"] != null) ViewBag.SuccessMessage = TempData["RegisterSuccessMessage"];
             if (TempData["GlobalErrorMessage"] != null) ViewBag.ErrorMessage = TempData["GlobalErrorMessage"];
             if (TempData["ErrorMessage"] != null) ViewBag.ErrorMessage = (ViewBag.ErrorMessage != null ? ViewBag.ErrorMessage + "<br/>" : "") + TempData["ErrorMessage"];
-            if (TempData["ForgotPasswordMessage"] != null) ViewBag.InfoMessage = TempData["ForgotPasswordMessage"]; // For forgot password message
+            if (TempData["ForgotPasswordMessage"] != null) ViewBag.InfoMessage = TempData["ForgotPasswordMessage"];
 
             return View("~/Views/Home/PatientLogin.cshtml", new PatientLoginViewModel());
         }
@@ -88,21 +81,16 @@ namespace Patient_Appointment_Management_System.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> PatientLogin(PatientLoginViewModel model)
         {
-            if (ModelState.IsValid) // ModelState.IsValid checks [Required], [EmailAddress] etc. from ViewModel
+            if (ModelState.IsValid)
             {
-                // 1. Find patient by email in the database
                 var patientUser = await _context.Patients
                                             .FirstOrDefaultAsync(p => p.Email == model.Email);
-
-                // 2. Check if user exists and if password is correct
                 if (patientUser != null && PasswordHelper.VerifyPassword(model.Password, patientUser.PasswordHash))
                 {
-                    // 3. Set session variables
                     HttpContext.Session.SetString("PatientLoggedIn", "true");
-                    HttpContext.Session.SetInt32("PatientId", patientUser.PatientId); // Use actual DB ID
+                    HttpContext.Session.SetInt32("PatientId", patientUser.PatientId);
                     HttpContext.Session.SetString("PatientName", patientUser.Name);
                     HttpContext.Session.SetString("UserRole", "Patient");
-
                     _logger.LogInformation($"Patient login successful: {patientUser.Email}");
                     TempData["GlobalSuccessMessage"] = "Login successful!";
                     return RedirectToAction("PatientDashboard");
@@ -113,19 +101,18 @@ namespace Patient_Appointment_Management_System.Controllers
                     ModelState.AddModelError(string.Empty, "Invalid email or password.");
                 }
             }
-            // If model is null or ModelState is invalid after checks
             return View("~/Views/Home/PatientLogin.cshtml", model);
         }
 
         // === HELPER & OTHER PATIENT ACTIONS ===
-        private bool IsPatientLoggedIn() // This remains the same
+        private bool IsPatientLoggedIn()
         {
             return HttpContext.Session.GetString("PatientLoggedIn") == "true" &&
                    HttpContext.Session.GetString("UserRole") == "Patient";
         }
 
         [HttpGet]
-        public IActionResult PatientDashboard() // Mostly remains the same, just session check
+        public IActionResult PatientDashboard()
         {
             if (!IsPatientLoggedIn())
             {
@@ -135,6 +122,8 @@ namespace Patient_Appointment_Management_System.Controllers
             var patientName = HttpContext.Session.GetString("PatientName") ?? "User";
             ViewBag.WelcomeMessage = $"Welcome, {patientName}!";
             if (TempData["GlobalSuccessMessage"] != null) ViewBag.SuccessMessage = TempData["GlobalSuccessMessage"];
+            if (TempData["SuccessMessage"] != null) ViewBag.SuccessMessage = (ViewBag.SuccessMessage != null ? ViewBag.SuccessMessage + "<br/>" : "") + TempData["SuccessMessage"];
+
 
             return View("~/Views/Home/PatientDashboard.cshtml");
         }
@@ -147,17 +136,13 @@ namespace Patient_Appointment_Management_System.Controllers
                 TempData["ErrorMessage"] = "Please log in to view your profile.";
                 return RedirectToAction("PatientLogin");
             }
-
             var patientIdFromSession = HttpContext.Session.GetInt32("PatientId");
             if (patientIdFromSession == null)
             {
                 TempData["ErrorMessage"] = "Session error. Please log in again.";
                 return RedirectToAction("PatientLogin");
             }
-
-            // Fetch patient from database using the ID stored in session
             var patient = await _context.Patients.FindAsync(patientIdFromSession.Value);
-
             if (patient == null)
             {
                 _logger.LogError($"Patient profile not found for ID: {patientIdFromSession.Value}. Clearing session.");
@@ -165,60 +150,42 @@ namespace Patient_Appointment_Management_System.Controllers
                 HttpContext.Session.Clear();
                 return RedirectToAction("PatientLogin");
             }
-
-            // Map ENTITY to ViewModel for display (PatientProfileViewModel might be different from Models.Patient)
-            // Assuming PatientProfileViewModel is what your View expects and has similar properties.
-            // If PatientProfileViewModel has properties like CountryCode, you'll need to handle that (e.g., split Phone).
             var patientProfileViewModel = new PatientProfileViewModel
             {
-                Id = patient.PatientId, // Use PatientId from the entity
+                Id = patient.PatientId,
                 Name = patient.Name,
-                Email = patient.Email, // Email usually isn't updatable on profile page, so display it
-                Phone = patient.Phone, // You might need to split this if your VM has CountryCode & PhoneNumber separate
+                Email = patient.Email,
+                Phone = patient.Phone,
                 Dob = patient.Dob,
                 Address = patient.Address
-                // Do NOT include PasswordHash here
             };
-
             if (TempData["ProfileUpdateMessage"] != null) ViewBag.SuccessMessage = TempData["ProfileUpdateMessage"];
             return View("~/Views/Home/PatientProfile.cshtml", patientProfileViewModel);
         }
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> PatientProfile(PatientProfileViewModel model) // ViewModel received from form
+        public async Task<IActionResult> PatientProfile(PatientProfileViewModel model)
         {
             if (!IsPatientLoggedIn()) return RedirectToAction("PatientLogin");
-
             var patientIdFromSession = HttpContext.Session.GetInt32("PatientId");
             if (patientIdFromSession == null || model.Id != patientIdFromSession.Value)
             {
                 TempData["ErrorMessage"] = "Unauthorized profile update attempt or session mismatch.";
-                HttpContext.Session.Clear(); // For security, clear session on mismatch
+                HttpContext.Session.Clear();
                 return RedirectToAction("PatientLogin");
             }
-
-            if (ModelState.IsValid) // Validates the ViewModel
+            if (ModelState.IsValid)
             {
-                // Fetch the existing patient entity from the database
                 var patientToUpdate = await _context.Patients.FindAsync(model.Id);
-
                 if (patientToUpdate != null)
                 {
-                    // Update only the allowed fields from the ViewModel
                     patientToUpdate.Name = model.Name;
-                    patientToUpdate.Phone = model.Phone; // If Phone includes CountryCode, ensure it's handled.
-                                                         // Or, if VM has CountryCode and PhoneNumber separate:
-                                                         // patientToUpdate.Phone = model.CountryCode + model.PhoneNumber;
+                    patientToUpdate.Phone = model.Phone;
                     patientToUpdate.Dob = model.Dob;
                     patientToUpdate.Address = model.Address;
-                    // DO NOT update Email from here unless it's a specific feature with verification.
-                    // DO NOT update PasswordHash from this profile update form. That's a separate "Change Password" feature.
-
-                    _context.Patients.Update(patientToUpdate); // Mark entity as modified
-                    await _context.SaveChangesAsync();         // Save changes to database
-
-                    // Update session if name changed, for display purposes
+                    _context.Patients.Update(patientToUpdate);
+                    await _context.SaveChangesAsync();
                     HttpContext.Session.SetString("PatientName", patientToUpdate.Name);
                     _logger.LogInformation($"Patient profile updated for ID: {patientToUpdate.PatientId}");
                     TempData["ProfileUpdateMessage"] = "Profile updated successfully!";
@@ -226,27 +193,24 @@ namespace Patient_Appointment_Management_System.Controllers
                 else
                 {
                     _logger.LogWarning($"Attempted to update non-existent patient profile. ID from model: {model.Id}");
-                    TempData["ProfileUpdateMessage"] = "Error: Profile not found for update."; // More user-friendly: TempData["ErrorMessage"]
+                    TempData["ProfileUpdateMessage"] = "Error: Profile not found for update.";
                 }
-                return RedirectToAction("PatientProfile"); // Redirect back to GET to show updated profile and message
+                return RedirectToAction("PatientProfile");
             }
-
-            // If ModelState is invalid, return the view with the model to show validation errors
-            // The model passed back should be the ViewModel with the user's input and errors
             _logger.LogWarning($"Patient profile update failed due to ModelState errors for ID: {model.Id}");
             return View("~/Views/Home/PatientProfile.cshtml", model);
         }
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public IActionResult PatientLogout() // Remains the same as it's session-based
+        public IActionResult PatientLogout()
         {
             try
             {
                 HttpContext.Session.Clear();
                 _logger.LogInformation("Patient logged out successfully.");
                 TempData["GlobalSuccessMessage"] = "You have been successfully logged out.";
-                return RedirectToAction("Index", "Home"); // Or PatientLogin
+                return RedirectToAction("Index", "Home");
             }
             catch (Exception ex)
             {
@@ -256,93 +220,117 @@ namespace Patient_Appointment_Management_System.Controllers
             }
         }
 
-
         // === BOOK APPOINTMENT ACTIONS ===
         [HttpGet]
-        public IActionResult BookAppointment() // Session check remains
+        public async Task<IActionResult> BookAppointment()
         {
             if (!IsPatientLoggedIn())
             {
                 TempData["ErrorMessage"] = "Please log in to book an appointment.";
                 return RedirectToAction("PatientLogin");
             }
-            // TODO: This view might need data like a list of doctors, available slots, etc.
-            // You'll fetch this from the DB and pass it via a ViewModel.
-            // For now, just returning the view.
-            return View("~/Views/Home/BookAppointment.cshtml");
+
+            // Fetch doctors for the dropdown
+            // Assuming you have a Doctor model with DoctorId and Name properties
+            var doctors = await _context.Doctors
+                                    .Select(d => new { d.DoctorId, d.Name, d.Specialization }) // Fetch only needed fields
+                                    .ToListAsync();
+
+            var viewModel = new BookAppointmentViewModel
+            {
+                DoctorsList = new SelectList(doctors, "DoctorId", "Name", null, "Specialization"), // Group by Specialization
+                AppointmentDate = DateTime.Today // Default to today
+            };
+
+            return View("~/Views/Home/BookAppointment.cshtml", viewModel);
         }
 
-        // TODO: Implement the POST action for booking an appointment (will involve DB operations)
-        // Example structure:
-        /*
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> BookAppointment(BookAppointmentViewModel model) // ViewModel for booking form
+        public async Task<IActionResult> BookAppointment(BookAppointmentViewModel model)
         {
             if (!IsPatientLoggedIn())
             {
+                TempData["ErrorMessage"] = "Please log in to book an appointment.";
                 return RedirectToAction("PatientLogin");
             }
 
             var patientIdFromSession = HttpContext.Session.GetInt32("PatientId");
             if (patientIdFromSession == null)
             {
-                 TempData["ErrorMessage"] = "Session error. Please log in again.";
-                 return RedirectToAction("PatientLogin");
+                TempData["ErrorMessage"] = "Session error. Please log in again to book an appointment.";
+                return RedirectToAction("PatientLogin");
             }
 
             if (ModelState.IsValid)
             {
-                // 1. Validate DoctorId, Date, TimeSlot (e.g., is doctor available?)
-                //    var doctor = await _context.Doctors.FindAsync(model.DoctorId);
-                //    if (doctor == null) { ModelState.AddModelError("DoctorId", "Selected doctor not found."); }
-                //
-                //    var selectedSlot = await _context.AvailabilitySlots.FirstOrDefaultAsync(s =>
-                //        s.DoctorId == model.DoctorId &&
-                //        s.Date.Date == model.AppointmentDate.Date && // Compare Date part only
-                //        s.StartTime == model.TimeSlot &&
-                //        !s.IsBooked);
-                //
-                //    if (selectedSlot == null)
-                //    {
-                //        ModelState.AddModelError("", "The selected time slot is not available or does not exist.");
-                //        // Repopulate any dropdowns needed for the view and return
-                //        return View("~/Views/Home/BookAppointment.cshtml", model);
-                //    }
-
-                // 2. Create new Appointment ENTITY
-                var newAppointment = new Appointment
+                try
                 {
-                    PatientId = patientIdFromSession.Value,
-                    DoctorId = model.DoctorId, // Assuming BookAppointmentViewModel has DoctorId
-                    AppointmentDateTime = model.AppointmentDate.Add(model.TimeSlot), // Combine Date and Time
-                    Status = "Scheduled", // Initial status
-                    Issue = model.Issue,
-                    // BookedAvailabilitySlotId = selectedSlot.AvailabilitySlotId // Link to the slot
-                };
+                    // Parse the TimeSlot to get the start time
+                    // Example TimeSlot: "09:00 AM - 10:00 AM"
+                    string timeSlotPart = model.TimeSlot.Split('-')[0].Trim(); // Gets "09:00 AM"
+                    DateTime parsedTime;
+                    if (!DateTime.TryParseExact(timeSlotPart, "hh:mm tt", CultureInfo.InvariantCulture, DateTimeStyles.None, out parsedTime))
+                    {
+                        // Handle alternative format like "HH:mm" if AM/PM is missing or different
+                        if (!DateTime.TryParseExact(timeSlotPart, "h:mm tt", CultureInfo.InvariantCulture, DateTimeStyles.None, out parsedTime))
+                        {
+                            ModelState.AddModelError("TimeSlot", "Invalid time slot format.");
+                            // Repopulate DoctorsList if returning to view with errors
+                            var doctors = await _context.Doctors.Select(d => new { d.DoctorId, d.Name, d.Specialization }).ToListAsync();
+                            model.DoctorsList = new SelectList(doctors, "DoctorId", "Name", model.DoctorId, "Specialization");
+                            return View("~/Views/Home/BookAppointment.cshtml", model);
+                        }
+                    }
 
-                _context.Appointments.Add(newAppointment);
-                // selectedSlot.IsBooked = true; // Mark the slot as booked
-                // selectedSlot.BookedByAppointmentId = newAppointment.AppointmentId; // This will be set after newAppointment gets an ID
-                // _context.AvailabilitySlots.Update(selectedSlot);
+                    DateTime appointmentDateTime = model.AppointmentDate.Date.Add(parsedTime.TimeOfDay);
 
-                await _context.SaveChangesAsync();
-                
-                // To set BookedByAppointmentId on the slot correctly after the appointment is saved:
-                // selectedSlot.BookedByAppointmentId = newAppointment.AppointmentId; 
-                // await _context.SaveChangesAsync();
+                    // Optional: Check if the selected doctor exists (though SelectList should prevent invalid IDs)
+                    var doctorExists = await _context.Doctors.AnyAsync(d => d.DoctorId == model.DoctorId);
+                    if (!doctorExists)
+                    {
+                        ModelState.AddModelError("DoctorId", "Selected doctor is not valid.");
+                        // Repopulate and return
+                        var doctors = await _context.Doctors.Select(d => new { d.DoctorId, d.Name, d.Specialization }).ToListAsync();
+                        model.DoctorsList = new SelectList(doctors, "DoctorId", "Name", model.DoctorId, "Specialization");
+                        return View("~/Views/Home/BookAppointment.cshtml", model);
+                    }
 
+                    // Optional: Check for conflicts (e.g., doctor already booked, patient already booked)
+                    // This can be complex and might involve checking an AvailabilitySlots table
+                    // For now, we'll keep it simple.
 
-                _logger.LogInformation($"Appointment booked for Patient ID {patientIdFromSession.Value} with Doctor ID {model.DoctorId}");
-                TempData["SuccessMessage"] = "Appointment requested successfully! You will be notified upon confirmation.";
-                return RedirectToAction("PatientDashboard");
+                    var newAppointment = new Appointment
+                    {
+                        PatientId = patientIdFromSession.Value,
+                        DoctorId = model.DoctorId,
+                        AppointmentDateTime = appointmentDateTime,
+                        Status = "Scheduled", // Initial status
+                        Issue = model.Issue
+                        // BookedAvailabilitySlotId = null; // If not directly using specific slots yet
+                    };
+
+                    _context.Appointments.Add(newAppointment);
+                    await _context.SaveChangesAsync();
+
+                    _logger.LogInformation($"Appointment booked successfully for Patient ID {patientIdFromSession.Value} with Doctor ID {model.DoctorId} on {newAppointment.AppointmentDateTime}");
+                    TempData["SuccessMessage"] = $"Appointment with Dr. {(_context.Doctors.Find(model.DoctorId)?.Name ?? "selected doctor")} on {appointmentDateTime:MMMM dd, yyyy 'at' hh:mm tt} has been successfully requested.";
+                    return RedirectToAction("PatientDashboard");
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error booking appointment for Patient ID {PatientId}", patientIdFromSession.Value);
+                    ModelState.AddModelError("", "An unexpected error occurred while booking the appointment. Please try again.");
+                }
             }
 
-            // If ModelState is invalid, repopulate necessary data for the view (e.g., doctor list)
-            // ViewBag.Doctors = new SelectList(await _context.Doctors.ToListAsync(), "DoctorId", "Name");
+            // If ModelState is invalid, repopulate necessary data for the view
+            var allDoctors = await _context.Doctors.Select(d => new { d.DoctorId, d.Name, d.Specialization }).ToListAsync();
+            model.DoctorsList = new SelectList(allDoctors, "DoctorId", "Name", model.DoctorId, "Specialization");
+            // The AvailableTimeSlots list is already part of the model, so it will be re-rendered.
             return View("~/Views/Home/BookAppointment.cshtml", model);
         }
-        */
+
 
         // === PATIENT FORGOT PASSWORD (Initial DB check) ===
         [HttpGet]
@@ -358,22 +346,11 @@ namespace Patient_Appointment_Management_System.Controllers
             if (ModelState.IsValid)
             {
                 var patientExists = await _context.Patients.AnyAsync(p => p.Email == model.Email);
-                if (patientExists)
-                {
-                    _logger.LogInformation($"Password reset initiated for existing patient email: {model.Email}");
-                    // TODO: Actual password reset logic (generate token, send email)
-                }
-                else
-                {
-                    _logger.LogInformation($"Password reset attempt for non-existent patient email: {model.Email}");
-                }
-                // Always show the same message to prevent email enumeration.
+                // Business logic for sending reset link would go here
                 TempData["ForgotPasswordMessage"] = "If an account with that email address exists, a password reset link has been sent. Please check your inbox (and spam folder).";
                 return RedirectToAction("PatientLogin");
             }
             return View("~/Views/Home/PatientForgotPassword.cshtml", model);
         }
-
-        // TODO: Add PatientResetPassword GET and POST actions
     }
 }

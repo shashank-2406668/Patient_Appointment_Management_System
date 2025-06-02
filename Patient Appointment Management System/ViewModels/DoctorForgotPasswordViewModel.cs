@@ -6,7 +6,8 @@ namespace Patient_Appointment_Management_System.ViewModels
     public class DoctorForgotPasswordViewModel
     {
         [Required(ErrorMessage = "Email address is required.")]
-        [EmailAddress(ErrorMessage = "Please enter a valid email address.")]
-        public string Email { get; set; }
+        [EmailAddress(ErrorMessage = "Invalid Email Address format.")]
+        [Display(Name = "Email Address")]
+        public string Email { get; set; } = string.Empty;
     }
 }

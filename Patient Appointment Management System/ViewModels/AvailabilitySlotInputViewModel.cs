@@ -8,15 +8,14 @@ namespace Patient_Appointment_Management_System.ViewModels
     {
         [Required(ErrorMessage = "Date is required.")]
         [DataType(DataType.Date)]
-        [Display(Name = "Date")]
         public DateTime Date { get; set; } = DateTime.Today.AddDays(1);
 
-        [Required(ErrorMessage = "Start Time is required.")]
+        [Required(ErrorMessage = "Start time is required.")]
         [DataType(DataType.Time)]
         [Display(Name = "Start Time")]
         public TimeSpan StartTime { get; set; }
 
-        [Required(ErrorMessage = "End Time is required.")]
+        [Required(ErrorMessage = "End time is required.")]
         [DataType(DataType.Time)]
         [Display(Name = "End Time")]
         public TimeSpan EndTime { get; set; }
