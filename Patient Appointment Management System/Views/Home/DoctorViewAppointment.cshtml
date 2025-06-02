@@ -1,11 +1,10 @@
-﻿@model IEnumerable<Patient_Appointment_Management_System.ViewModels.AppointmentSummaryViewModel>
+﻿@* File Path: Views/Home/DoctorViewAppointment.cshtml *@
+@model IEnumerable<Patient_Appointment_Management_System.ViewModels.AppointmentSummaryViewModel>
 @{
     Layout = null; // This page is self-contained for now. Consider a shared Doctor layout later.
     ViewData["Title"] = "Doctor Appointments";
 }
 
-<!doctype html>
-<html lang="en">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -18,8 +17,8 @@
             font-family: 'Arial', sans-serif;
         }
 
-        .navbar-custom { /* Basic navbar style if you add one directly here */
-            background-color: #007bff; /* Doctor theme green */
+        .navbar-custom {
+            background-color: #007bff;
             padding: 1rem;
         }
 
@@ -34,11 +33,11 @@
 
         .appointments-container {
             padding: 20px;
-            margin-top: 1rem; /* Add some space if navbar is present */
+            margin-top: 1rem;
         }
 
         .appointments-heading {
-            color: #28a745; /* Green for doctor theme */
+            color: #28a745;
             margin-bottom: 20px;
         }
 
@@ -49,7 +48,7 @@
         }
 
             .table th {
-                background-color: #e9ecef; /* Lighter grey for header */
+                background-color: #e9ecef;
                 border-bottom: 2px solid #dee2e6;
                 color: #495057;
             }
@@ -70,7 +69,6 @@
     </style>
 </head>
 <body>
-    <!-- Optional: Basic Navbar (You can integrate with your doctor layout later) -->
     <nav class="navbar navbar-expand-lg navbar-custom">
         <div class="container-fluid">
             <a class="navbar-brand" asp-controller="Doctor" asp-action="Dashboard">Doctor Portal</a>
@@ -107,7 +105,7 @@
                             <th>Patient Name</th>
                             <th>Date</th>
                             <th>Time</th>
-                            <th>Status/Reason</th> @* Combined Status from model, Reason was in your static HTML but not model *@
+                            <th>Status/Reason</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -137,10 +135,4 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-    @*
-    Removed the JavaScript for localStorage check and static data loading.
-    Authentication is handled by the Controller.
-    Data is rendered by Razor using the @Model.
-    *@
 </body>
-</html>

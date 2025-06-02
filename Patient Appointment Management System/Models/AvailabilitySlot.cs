@@ -9,35 +9,33 @@ namespace Patient_Appointment_Management_System.Models
     public class AvailabilitySlot
     {
         [Key]
-        public int AvailabilitySlotId { get; set; } // Changed name for clarity
+        public int AvailabilitySlotId { get; set; }
 
         [Required]
-        public int DoctorId { get; set; } // Foreign Key to Doctor
+        public int DoctorId { get; set; }
 
         [Required]
         [Column(TypeName = "date")]
-        public DateTime Date { get; set; } // The date of availability
+        public DateTime Date { get; set; }
 
         [Required]
-        [Column(TypeName = "time")]
-        public TimeSpan StartTime { get; set; } // Start time of the slot
+        public TimeSpan StartTime { get; set; }
 
         [Required]
-        [Column(TypeName = "time")]
-        public TimeSpan EndTime { get; set; } // End time of the slot
+        public TimeSpan EndTime { get; set; }
 
-        public bool IsBooked { get; set; } = false; // True if an appointment has booked this slot
+        public bool IsBooked { get; set; } = false;
 
-        // If an appointment books this slot, this FK links them.
-        // This allows an AvailabilitySlot to know which Appointment booked it.
+        // Optional: Direct link to the appointment that booked this slot
         public int? BookedByAppointmentId { get; set; }
 
 
-        // --- Navigation properties ---
         [ForeignKey("DoctorId")]
         public virtual Doctor Doctor { get; set; } = null!;
 
-        // This navigation property allows you to get the Appointment that booked this specific slot.
+        // Optional: Navigation property back to the appointment
+        // This creates a one-to-one relationship from AvailabilitySlot to Appointment (if an appointment booked it)
+        // Ensure your DbContext snapshot handles this correctly (it might be a one-to-one or one-to-zero-or-one)
         [ForeignKey("BookedByAppointmentId")]
         public virtual Appointment? BookedByAppointment { get; set; }
     }

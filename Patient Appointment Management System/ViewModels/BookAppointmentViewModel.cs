@@ -2,7 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
-using Microsoft.AspNetCore.Mvc.Rendering; // Required for SelectList
+using Microsoft.AspNetCore.Mvc.Rendering;
 
 namespace Patient_Appointment_Management_System.ViewModels
 {
@@ -18,31 +18,19 @@ namespace Patient_Appointment_Management_System.ViewModels
         public DateTime AppointmentDate { get; set; }
 
         [Required(ErrorMessage = "Please select a time slot.")]
-        [Display(Name = "Time Slot")]
-        public string TimeSlot { get; set; } // e.g., "09:00 AM - 10:00 AM"
+        [Display(Name = "Available Time Slot")]
+        public string SelectedAvailabilitySlotId { get; set; } = string.Empty; // Will hold "AvailabilitySlotId" as value
 
         [Required(ErrorMessage = "Please describe your medical issue.")]
         [StringLength(500, ErrorMessage = "Issue description cannot exceed 500 characters.")]
         [Display(Name = "Brief Description of Issue")]
-        public string Issue { get; set; }
+        public string Issue { get; set; } = string.Empty;
 
-        // For populating the Doctor dropdown in the view
         public IEnumerable<SelectListItem>? DoctorsList { get; set; }
-
-        // For populating time slots in the view
-        // You can make this dynamic later based on doctor availability
-        public List<string> AvailableTimeSlots { get; set; } = new List<string>
-        {
-            "09:00 AM - 10:00 AM",
-            "10:00 AM - 11:00 AM",
-            "12:00 PM - 01:00 PM", // Corrected to PM
-            "03:00 PM - 04:00 PM",
-            "04:00 PM - 05:00 PM"
-        };
+        public List<SelectListItem> AvailableTimeSlots { get; set; } = new List<SelectListItem>(); // Will be list of SelectListItems (Text: "TimeRange", Value: "SlotId")
 
         public BookAppointmentViewModel()
         {
-            // Set default appointment date to today to avoid issues with min attribute if model state is invalid
             AppointmentDate = DateTime.Today;
         }
     }

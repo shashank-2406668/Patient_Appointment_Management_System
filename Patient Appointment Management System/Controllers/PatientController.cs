@@ -137,7 +137,9 @@ namespace Patient_Appointment_Management_System.Controllers
 
             var upcomingAppointments = await _context.Appointments
                 .Include(a => a.Doctor)
-                .Where(a => a.PatientId == patientId.Value && a.AppointmentDateTime >= now)
+                .Where(a => a.PatientId == patientId.Value &&
+                              a.AppointmentDateTime >= now &&
+                              a.Status != "Cancelled" && a.Status != "Completed")
                 .OrderBy(a => a.AppointmentDateTime)
                 .Select(a => new AppointmentDetailViewModel
                 {
@@ -152,7 +154,8 @@ namespace Patient_Appointment_Management_System.Controllers
 
             var appointmentHistory = await _context.Appointments
                 .Include(a => a.Doctor)
-                .Where(a => a.PatientId == patientId.Value && a.AppointmentDateTime < now)
+                .Where(a => a.PatientId == patientId.Value &&
+                              (a.AppointmentDateTime < now || a.Status == "Completed" || a.Status == "Cancelled"))
                 .OrderByDescending(a => a.AppointmentDateTime)
                 .Select(a => new AppointmentDetailViewModel
                 {
@@ -278,7 +281,7 @@ namespace Patient_Appointment_Management_System.Controllers
             }
         }
 
-        // === BOOK APPOINTMENT ACTIONS ===
+        // === BOOK APPOINTMENT ACTIONS (UPDATED) ===
         [HttpGet]
         public async Task<IActionResult> BookAppointment()
         {
@@ -295,10 +298,52 @@ namespace Patient_Appointment_Management_System.Controllers
             var viewModel = new BookAppointmentViewModel
             {
                 DoctorsList = new SelectList(doctors, "DoctorId", "NameAndSpec"),
-                AppointmentDate = DateTime.Today // Default to today
+                AppointmentDate = DateTime.Today.AddDays(1)
             };
             return View("~/Views/Home/BookAppointment.cshtml", viewModel);
         }
+
+        [HttpGet]
+        public async Task<IActionResult> GetAvailableSlotsForDoctor(int doctorId, DateTime appointmentDate)
+        {
+            if (!IsPatientLoggedIn())
+            {
+                return Json(new { success = false, message = "User not logged in." });
+            }
+            if (doctorId <= 0 || appointmentDate < DateTime.Today)
+            {
+                return Json(new { success = false, message = "Invalid doctor or date selected." });
+            }
+
+            try
+            {
+                var availableSlots = await _context.AvailabilitySlots
+                    .Where(s => s.DoctorId == doctorId &&
+                                  s.Date == appointmentDate.Date &&
+                                  !s.IsBooked &&
+                                  (appointmentDate.Date > DateTime.Today || s.StartTime > DateTime.Now.TimeOfDay)
+                                  )
+                    .OrderBy(s => s.StartTime)
+                    .Select(s => new SelectListItem
+                    {
+                        Value = s.AvailabilitySlotId.ToString(),
+                        Text = $"{s.StartTime:hh\\:mm tt} - {s.EndTime:hh\\:mm tt}"
+                    })
+                    .ToListAsync();
+
+                if (!availableSlots.Any())
+                {
+                    return Json(new { success = true, slots = new List<SelectListItem>(), message = "No available slots for the selected doctor and date." });
+                }
+                return Json(new { success = true, slots = availableSlots });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error fetching available slots for Doctor ID {DoctorId} on Date {AppointmentDate}", doctorId, appointmentDate);
+                return Json(new { success = false, message = "An error occurred while fetching available slots." });
+            }
+        }
+
 
         [HttpPost]
         [ValidateAntiForgeryToken]
@@ -313,100 +358,82 @@ namespace Patient_Appointment_Management_System.Controllers
             var patientIdFromSession = HttpContext.Session.GetInt32("PatientId");
             if (patientIdFromSession == null)
             {
-                TempData["ErrorMessage"] = "Session error. Please log in again to book an appointment.";
-                await RepopulateBookAppointmentViewModelAsync(model);
+                TempData["ErrorMessage"] = "Session error. Please log in again.";
+                await RepopulateBookAppointmentViewModelForPostErrorAsync(model, null, null);
                 return View("~/Views/Home/BookAppointment.cshtml", model);
             }
 
-            DateTime parsedStartTime = default;
-            DateTime parsedEndTime = default;
-            bool timeSlotValidlyParsed = false;
+            int parsedSelectedSlotId = 0; // Initialize to a default/invalid value
+            bool slotIdParsedSuccessfully = false;
 
-            if (string.IsNullOrWhiteSpace(model.TimeSlot))
+            if (string.IsNullOrWhiteSpace(model.SelectedAvailabilitySlotId) ||
+                !int.TryParse(model.SelectedAvailabilitySlotId, out parsedSelectedSlotId))
             {
-                ModelState.AddModelError("TimeSlot", "Time slot must be selected.");
+                ModelState.AddModelError("SelectedAvailabilitySlotId", "Please select an available time slot.");
             }
             else
             {
-                string[] timeParts = model.TimeSlot.Split(new[] { " - " }, StringSplitOptions.RemoveEmptyEntries);
-                if (timeParts.Length != 2)
-                {
-                    ModelState.AddModelError("TimeSlot", "Invalid time slot format. Expected 'StartTime - EndTime'.");
-                }
-                else
-                {
-                    bool startTimeParsed = DateTime.TryParseExact(timeParts[0].Trim(),
-                                               new[] { "hh:mm tt", "h:mm tt" },
-                                               CultureInfo.InvariantCulture, DateTimeStyles.None, out parsedStartTime);
-                    bool endTimeParsed = DateTime.TryParseExact(timeParts[1].Trim(),
-                                               new[] { "hh:mm tt", "h:mm tt" },
-                                               CultureInfo.InvariantCulture, DateTimeStyles.None, out parsedEndTime);
-
-                    if (!startTimeParsed)
-                    {
-                        ModelState.AddModelError("TimeSlot", "Invalid start time format in selected slot.");
-                    }
-                    if (!endTimeParsed)
-                    {
-                        ModelState.AddModelError("TimeSlot", "Invalid end time format in selected slot.");
-                    }
-
-                    if (startTimeParsed && endTimeParsed)
-                    {
-                        if (parsedEndTime.TimeOfDay <= parsedStartTime.TimeOfDay)
-                        {
-                            ModelState.AddModelError("TimeSlot", "End time in slot must be after start time.");
-                        }
-                        else
-                        {
-                            timeSlotValidlyParsed = true;
-                        }
-                    }
-                }
+                slotIdParsedSuccessfully = true;
             }
 
             if (!ModelState.IsValid)
             {
-                await RepopulateBookAppointmentViewModelAsync(model);
+                await RepopulateBookAppointmentViewModelForPostErrorAsync(model,
+                    slotIdParsedSuccessfully ? model.DoctorId : (int?)null,
+                    slotIdParsedSuccessfully ? model.AppointmentDate : (DateTime?)null);
                 return View("~/Views/Home/BookAppointment.cshtml", model);
             }
 
-            if (!timeSlotValidlyParsed)
+            // Now that ModelState is valid up to this point, and slotIdParsedSuccessfully is true,
+            // parsedSelectedSlotId holds the valid integer.
+            if (!slotIdParsedSuccessfully) // This is a defensive check; !ModelState.IsValid should catch it.
             {
-                _logger.LogWarning("Time slot parsing failed logic path. TimeSlot: {TimeSlot}", model.TimeSlot);
-                // ModelState.AddModelError("TimeSlot", "The selected time slot could not be processed."); // Optionally add a generic error
-                await RepopulateBookAppointmentViewModelAsync(model);
+                _logger.LogWarning("Slot ID parsing failed despite ModelState being valid. SelectedAvailabilitySlotId: {SelectedSlotIdValue}", model.SelectedAvailabilitySlotId);
+                ModelState.AddModelError("SelectedAvailabilitySlotId", "Invalid slot selection process."); // Add a model error
+                await RepopulateBookAppointmentViewModelForPostErrorAsync(model, model.DoctorId, model.AppointmentDate);
                 return View("~/Views/Home/BookAppointment.cshtml", model);
             }
 
-            DateTime appointmentStartDateTime = model.AppointmentDate.Date.Add(parsedStartTime.TimeOfDay);
-            DateTime appointmentEndDateTime = model.AppointmentDate.Date.Add(parsedEndTime.TimeOfDay);
+            var chosenSlot = await _context.AvailabilitySlots
+                                     .FirstOrDefaultAsync(s => s.AvailabilitySlotId == parsedSelectedSlotId &&
+                                                               s.DoctorId == model.DoctorId &&
+                                                               s.Date == model.AppointmentDate.Date &&
+                                                               !s.IsBooked);
+
+            if (chosenSlot == null)
+            {
+                ModelState.AddModelError("", "The selected time slot is no longer available or is invalid. Please refresh and try again.");
+                TempData["BookingErrorMessage"] = "The selected time slot is no longer available. Please select another.";
+                await RepopulateBookAppointmentViewModelForPostErrorAsync(model, model.DoctorId, model.AppointmentDate);
+                return View("~/Views/Home/BookAppointment.cshtml", model);
+            }
+
+            if (chosenSlot.Date == DateTime.Today && chosenSlot.StartTime <= DateTime.Now.TimeOfDay)
+            {
+                ModelState.AddModelError("", "The selected time slot has already passed for today. Please select a future time.");
+                TempData["BookingErrorMessage"] = "The selected time slot has passed. Please select another.";
+                await RepopulateBookAppointmentViewModelForPostErrorAsync(model, model.DoctorId, model.AppointmentDate);
+                return View("~/Views/Home/BookAppointment.cshtml", model);
+            }
+
+            DateTime newAppointmentStartTime = chosenSlot.Date.Add(chosenSlot.StartTime);
+            DateTime newAppointmentEndTime = chosenSlot.Date.Add(chosenSlot.EndTime);
 
             bool patientHasConflict = await _context.Appointments
                 .AnyAsync(a => a.PatientId == patientIdFromSession.Value &&
-                               a.AppointmentDateTime < appointmentEndDateTime &&
-                               a.AppointmentDateTime.AddHours(1) > appointmentStartDateTime &&
+                               a.AppointmentDateTime < newAppointmentEndTime &&
+                               GetAppointmentEndDateTime(a) > newAppointmentStartTime &&
                                a.Status != "Cancelled" && a.Status != "Completed");
 
             if (patientHasConflict)
             {
-                ModelState.AddModelError("", $"You already have an overlapping appointment around {appointmentStartDateTime:hh:mm tt} on {model.AppointmentDate:MMMM dd, yyyy}.");
-            }
-
-            bool doctorHasConflict = await _context.Appointments
-                .AnyAsync(a => a.DoctorId == model.DoctorId &&
-                               a.AppointmentDateTime < appointmentEndDateTime &&
-                               a.AppointmentDateTime.AddHours(1) > appointmentStartDateTime &&
-                               a.Status != "Cancelled");
-
-            if (doctorHasConflict)
-            {
-                ModelState.AddModelError("", $"The selected doctor is not available for the period {appointmentStartDateTime:hh:mm tt} - {appointmentEndDateTime:hh:mm tt} on {model.AppointmentDate:MMMM dd, yyyy}. Please choose another time or doctor.");
+                ModelState.AddModelError("", $"You already have an overlapping appointment scheduled around this time.");
+                TempData["BookingErrorMessage"] = "You have an existing overlapping appointment.";
             }
 
             if (!ModelState.IsValid)
             {
-                await RepopulateBookAppointmentViewModelAsync(model);
+                await RepopulateBookAppointmentViewModelForPostErrorAsync(model, model.DoctorId, model.AppointmentDate);
                 return View("~/Views/Home/BookAppointment.cshtml", model);
             }
 
@@ -416,42 +443,100 @@ namespace Patient_Appointment_Management_System.Controllers
                 {
                     PatientId = patientIdFromSession.Value,
                     DoctorId = model.DoctorId,
-                    AppointmentDateTime = appointmentStartDateTime,
+                    AppointmentDateTime = newAppointmentStartTime,
                     Status = "Scheduled",
-                    Issue = model.Issue
+                    Issue = model.Issue,
+                    BookedAvailabilitySlotId = chosenSlot.AvailabilitySlotId
                 };
 
+                chosenSlot.IsBooked = true;
+                // chosenSlot.BookedByAppointmentId will be null initially.
+                // If you want a two-way link where AvailabilitySlot also knows the AppointmentId directly,
+                // you'd set chosenSlot.BookedByAppointmentId = newAppointment.AppointmentId AFTER the first SaveChangesAsync
+                // and then call SaveChangesAsync again. For now, the link from Appointment to Slot is primary.
+
                 _context.Appointments.Add(newAppointment);
+                _context.AvailabilitySlots.Update(chosenSlot);
+
                 await _context.SaveChangesAsync();
 
-                _logger.LogInformation($"Appointment booked: PatientID {patientIdFromSession.Value}, DoctorID {model.DoctorId}, DateTime {appointmentStartDateTime}");
-                TempData["SuccessMessage"] = $"Appointment successfully requested for {appointmentStartDateTime:MMMM dd, yyyy 'at' hh:mm tt}.";
+                _logger.LogInformation($"Appointment booked: PatientID {patientIdFromSession.Value}, SlotID {chosenSlot.AvailabilitySlotId}, DateTime {newAppointmentStartTime}");
+                TempData["SuccessMessage"] = $"Appointment with Dr. {(_context.Doctors.Find(model.DoctorId)?.Name)} on {newAppointmentStartTime:MMMM dd, yyyy 'at' hh:mm tt} has been successfully requested.";
                 return RedirectToAction("PatientDashboard");
+            }
+            catch (DbUpdateConcurrencyException ex)
+            {
+                _logger.LogError(ex, "Concurrency error booking appointment. Slot ID {SlotId} might have been booked simultaneously.", chosenSlot.AvailabilitySlotId);
+                ModelState.AddModelError("", "This time slot was just booked by someone else. Please select a different slot.");
+                TempData["BookingErrorMessage"] = "This time slot was just booked. Please try another.";
             }
             catch (DbUpdateException dbEx)
             {
-                _logger.LogError(dbEx, "Database error booking appointment for Patient ID {PatientId}", patientIdFromSession.Value);
+                _logger.LogError(dbEx, "Database error booking appointment. Patient ID {PatientId}, Slot ID {SlotId}", patientIdFromSession.Value, chosenSlot?.AvailabilitySlotId);
                 ModelState.AddModelError("", "A database error occurred. Please try again. If the problem persists, contact support.");
                 TempData["BookingErrorMessage"] = "A database error occurred while booking your appointment.";
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error booking appointment for Patient ID {PatientId}", patientIdFromSession.Value);
+                _logger.LogError(ex, "General error booking appointment. Patient ID {PatientId}, Slot ID {SlotId}", patientIdFromSession.Value, chosenSlot?.AvailabilitySlotId);
                 ModelState.AddModelError("", "An unexpected error occurred. Please try again.");
                 TempData["BookingErrorMessage"] = "An unexpected error occurred while booking your appointment.";
             }
 
-            await RepopulateBookAppointmentViewModelAsync(model);
+            await RepopulateBookAppointmentViewModelForPostErrorAsync(model, model.DoctorId, model.AppointmentDate);
             return View("~/Views/Home/BookAppointment.cshtml", model);
         }
 
-        private async Task RepopulateBookAppointmentViewModelAsync(BookAppointmentViewModel model)
+        private DateTime GetAppointmentEndDateTime(Appointment appointment)
+        {
+            // If you add EndDateTime to your Appointment model, use it:
+            // return appointment.EndDateTime;
+
+            // If appointment is linked to an AvailabilitySlot, use its duration
+            if (appointment.BookedAvailabilitySlotId.HasValue && appointment.BookedAvailabilitySlot != null)
+            {
+                return appointment.BookedAvailabilitySlot.Date.Add(appointment.BookedAvailabilitySlot.EndTime);
+            }
+            // Otherwise, assume a default duration, e.g., 1 hour for older or manually entered appointments
+            return appointment.AppointmentDateTime.AddHours(1);
+        }
+
+
+        private async Task RepopulateBookAppointmentViewModelForPostErrorAsync(BookAppointmentViewModel model, int? preselectedDoctorId = null, DateTime? preselectedDate = null)
         {
             var doctors = await _context.Doctors
                                     .OrderBy(d => d.Name)
                                     .Select(d => new { d.DoctorId, NameAndSpec = $"{d.Name} ({d.Specialization})" })
                                     .ToListAsync();
-            model.DoctorsList = new SelectList(doctors, "DoctorId", "NameAndSpec", model.DoctorId);
+            model.DoctorsList = new SelectList(doctors, "DoctorId", "NameAndSpec", model.DoctorId); // Use model.DoctorId for current selection
+
+            if (preselectedDoctorId.HasValue && preselectedDoctorId.Value > 0 && preselectedDate.HasValue)
+            {
+                try
+                {
+                    model.AvailableTimeSlots = await _context.AvailabilitySlots
+                        .Where(s => s.DoctorId == preselectedDoctorId.Value &&
+                                      s.Date == preselectedDate.Value.Date &&
+                                      !s.IsBooked &&
+                                      (preselectedDate.Value.Date > DateTime.Today || s.StartTime > DateTime.Now.TimeOfDay))
+                        .OrderBy(s => s.StartTime)
+                        .Select(s => new SelectListItem
+                        {
+                            Value = s.AvailabilitySlotId.ToString(),
+                            Text = $"{s.StartTime:hh\\:mm tt} - {s.EndTime:hh\\:mm tt}"
+                        })
+                        .ToListAsync();
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error repopulating available slots during POST error handling.");
+                    model.AvailableTimeSlots = new List<SelectListItem>(); // Default to empty on error
+                }
+            }
+            else
+            {
+                model.AvailableTimeSlots = new List<SelectListItem>();
+            }
         }
 
 
