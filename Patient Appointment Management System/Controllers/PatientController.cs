@@ -5,13 +5,12 @@ using Patient_Appointment_Management_System.Data;
 using Patient_Appointment_Management_System.Models;
 using Patient_Appointment_Management_System.Utils;
 using Patient_Appointment_Management_System.ViewModels;
-using System.Diagnostics;
 using Microsoft.AspNetCore.Http;
 using System;
 using System.Linq;
 using System.Threading.Tasks;
-using Microsoft.AspNetCore.Mvc.Rendering; // For SelectList
-using System.Globalization; // For CultureInfo
+using Microsoft.AspNetCore.Mvc.Rendering;
+using System.Globalization;
 
 namespace Patient_Appointment_Management_System.Controllers
 {
@@ -25,8 +24,6 @@ namespace Patient_Appointment_Management_System.Controllers
             _context = context;
             _logger = logger;
         }
-
-        // ... (other actions like PatientRegister, PatientLogin, PatientDashboard, PatientProfile, PatientLogout remain the same) ...
 
         // === PATIENT REGISTRATION ===
         [HttpGet]
@@ -104,7 +101,7 @@ namespace Patient_Appointment_Management_System.Controllers
             return View("~/Views/Home/PatientLogin.cshtml", model);
         }
 
-        // === HELPER & OTHER PATIENT ACTIONS ===
+
         private bool IsPatientLoggedIn()
         {
             return HttpContext.Session.GetString("PatientLoggedIn") == "true" &&
@@ -112,20 +109,80 @@ namespace Patient_Appointment_Management_System.Controllers
         }
 
         [HttpGet]
-        public IActionResult PatientDashboard()
+        public async Task<IActionResult> PatientDashboard()
         {
             if (!IsPatientLoggedIn())
             {
                 TempData["ErrorMessage"] = "You need to log in as a patient to access the dashboard.";
                 return RedirectToAction("PatientLogin");
             }
-            var patientName = HttpContext.Session.GetString("PatientName") ?? "User";
-            ViewBag.WelcomeMessage = $"Welcome, {patientName}!";
+
+            var patientId = HttpContext.Session.GetInt32("PatientId");
+            if (patientId == null)
+            {
+                TempData["ErrorMessage"] = "Session error. Please log in again.";
+                return RedirectToAction("PatientLogin");
+            }
+
+            var patient = await _context.Patients.FindAsync(patientId.Value);
+            if (patient == null)
+            {
+                _logger.LogWarning($"Patient with ID {patientId.Value} not found. Clearing session.");
+                HttpContext.Session.Clear();
+                TempData["ErrorMessage"] = "Your account could not be found. Please log in again.";
+                return RedirectToAction("PatientLogin");
+            }
+
+            DateTime now = DateTime.Now;
+
+            var upcomingAppointments = await _context.Appointments
+                .Include(a => a.Doctor)
+                .Where(a => a.PatientId == patientId.Value && a.AppointmentDateTime >= now)
+                .OrderBy(a => a.AppointmentDateTime)
+                .Select(a => new AppointmentDetailViewModel
+                {
+                    AppointmentId = a.AppointmentId,
+                    AppointmentDateTime = a.AppointmentDateTime,
+                    DoctorName = a.Doctor.Name,
+                    DoctorSpecialization = a.Doctor.Specialization,
+                    Status = a.Status,
+                    Issue = a.Issue
+                })
+                .ToListAsync();
+
+            var appointmentHistory = await _context.Appointments
+                .Include(a => a.Doctor)
+                .Where(a => a.PatientId == patientId.Value && a.AppointmentDateTime < now)
+                .OrderByDescending(a => a.AppointmentDateTime)
+                .Select(a => new AppointmentDetailViewModel
+                {
+                    AppointmentId = a.AppointmentId,
+                    AppointmentDateTime = a.AppointmentDateTime,
+                    DoctorName = a.Doctor.Name,
+                    DoctorSpecialization = a.Doctor.Specialization,
+                    Status = a.Status,
+                    Issue = a.Issue
+                })
+                .ToListAsync();
+
+            var viewModel = new PatientDashboardViewModel
+            {
+                PatientName = patient.Name,
+                UpcomingAppointments = upcomingAppointments,
+                AppointmentHistory = appointmentHistory
+            };
+
             if (TempData["GlobalSuccessMessage"] != null) ViewBag.SuccessMessage = TempData["GlobalSuccessMessage"];
-            if (TempData["SuccessMessage"] != null) ViewBag.SuccessMessage = (ViewBag.SuccessMessage != null ? ViewBag.SuccessMessage + "<br/>" : "") + TempData["SuccessMessage"];
+            if (TempData["SuccessMessage"] != null)
+            {
+                ViewBag.SuccessMessage = (ViewBag.SuccessMessage != null ? ViewBag.SuccessMessage + "<br/>" : "") + TempData["SuccessMessage"];
+            }
+            if (TempData["BookingErrorMessage"] != null)
+            {
+                ViewBag.ErrorMessage = TempData["BookingErrorMessage"];
+            }
 
-
-            return View("~/Views/Home/PatientDashboard.cshtml");
+            return View("~/Views/Home/PatientDashboard.cshtml", viewModel);
         }
 
         [HttpGet]
@@ -168,6 +225,7 @@ namespace Patient_Appointment_Management_System.Controllers
         public async Task<IActionResult> PatientProfile(PatientProfileViewModel model)
         {
             if (!IsPatientLoggedIn()) return RedirectToAction("PatientLogin");
+
             var patientIdFromSession = HttpContext.Session.GetInt32("PatientId");
             if (patientIdFromSession == null || model.Id != patientIdFromSession.Value)
             {
@@ -175,6 +233,7 @@ namespace Patient_Appointment_Management_System.Controllers
                 HttpContext.Session.Clear();
                 return RedirectToAction("PatientLogin");
             }
+
             if (ModelState.IsValid)
             {
                 var patientToUpdate = await _context.Patients.FindAsync(model.Id);
@@ -192,12 +251,10 @@ namespace Patient_Appointment_Management_System.Controllers
                 }
                 else
                 {
-                    _logger.LogWarning($"Attempted to update non-existent patient profile. ID from model: {model.Id}");
                     TempData["ProfileUpdateMessage"] = "Error: Profile not found for update.";
                 }
                 return RedirectToAction("PatientProfile");
             }
-            _logger.LogWarning($"Patient profile update failed due to ModelState errors for ID: {model.Id}");
             return View("~/Views/Home/PatientProfile.cshtml", model);
         }
 
@@ -207,8 +264,9 @@ namespace Patient_Appointment_Management_System.Controllers
         {
             try
             {
+                var patientName = HttpContext.Session.GetString("PatientName");
                 HttpContext.Session.Clear();
-                _logger.LogInformation("Patient logged out successfully.");
+                _logger.LogInformation($"Patient {patientName ?? "Unknown"} logged out successfully.");
                 TempData["GlobalSuccessMessage"] = "You have been successfully logged out.";
                 return RedirectToAction("Index", "Home");
             }
@@ -230,18 +288,15 @@ namespace Patient_Appointment_Management_System.Controllers
                 return RedirectToAction("PatientLogin");
             }
 
-            // Fetch doctors for the dropdown
-            // Assuming you have a Doctor model with DoctorId and Name properties
             var doctors = await _context.Doctors
-                                    .Select(d => new { d.DoctorId, d.Name, d.Specialization }) // Fetch only needed fields
+                                    .OrderBy(d => d.Name)
+                                    .Select(d => new { d.DoctorId, NameAndSpec = $"{d.Name} ({d.Specialization})" })
                                     .ToListAsync();
-
             var viewModel = new BookAppointmentViewModel
             {
-                DoctorsList = new SelectList(doctors, "DoctorId", "Name", null, "Specialization"), // Group by Specialization
+                DoctorsList = new SelectList(doctors, "DoctorId", "NameAndSpec"),
                 AppointmentDate = DateTime.Today // Default to today
             };
-
             return View("~/Views/Home/BookAppointment.cshtml", viewModel);
         }
 
@@ -259,80 +314,148 @@ namespace Patient_Appointment_Management_System.Controllers
             if (patientIdFromSession == null)
             {
                 TempData["ErrorMessage"] = "Session error. Please log in again to book an appointment.";
-                return RedirectToAction("PatientLogin");
+                await RepopulateBookAppointmentViewModelAsync(model);
+                return View("~/Views/Home/BookAppointment.cshtml", model);
             }
 
-            if (ModelState.IsValid)
+            DateTime parsedStartTime = default;
+            DateTime parsedEndTime = default;
+            bool timeSlotValidlyParsed = false;
+
+            if (string.IsNullOrWhiteSpace(model.TimeSlot))
             {
-                try
+                ModelState.AddModelError("TimeSlot", "Time slot must be selected.");
+            }
+            else
+            {
+                string[] timeParts = model.TimeSlot.Split(new[] { " - " }, StringSplitOptions.RemoveEmptyEntries);
+                if (timeParts.Length != 2)
                 {
-                    // Parse the TimeSlot to get the start time
-                    // Example TimeSlot: "09:00 AM - 10:00 AM"
-                    string timeSlotPart = model.TimeSlot.Split('-')[0].Trim(); // Gets "09:00 AM"
-                    DateTime parsedTime;
-                    if (!DateTime.TryParseExact(timeSlotPart, "hh:mm tt", CultureInfo.InvariantCulture, DateTimeStyles.None, out parsedTime))
+                    ModelState.AddModelError("TimeSlot", "Invalid time slot format. Expected 'StartTime - EndTime'.");
+                }
+                else
+                {
+                    bool startTimeParsed = DateTime.TryParseExact(timeParts[0].Trim(),
+                                               new[] { "hh:mm tt", "h:mm tt" },
+                                               CultureInfo.InvariantCulture, DateTimeStyles.None, out parsedStartTime);
+                    bool endTimeParsed = DateTime.TryParseExact(timeParts[1].Trim(),
+                                               new[] { "hh:mm tt", "h:mm tt" },
+                                               CultureInfo.InvariantCulture, DateTimeStyles.None, out parsedEndTime);
+
+                    if (!startTimeParsed)
                     {
-                        // Handle alternative format like "HH:mm" if AM/PM is missing or different
-                        if (!DateTime.TryParseExact(timeSlotPart, "h:mm tt", CultureInfo.InvariantCulture, DateTimeStyles.None, out parsedTime))
+                        ModelState.AddModelError("TimeSlot", "Invalid start time format in selected slot.");
+                    }
+                    if (!endTimeParsed)
+                    {
+                        ModelState.AddModelError("TimeSlot", "Invalid end time format in selected slot.");
+                    }
+
+                    if (startTimeParsed && endTimeParsed)
+                    {
+                        if (parsedEndTime.TimeOfDay <= parsedStartTime.TimeOfDay)
                         {
-                            ModelState.AddModelError("TimeSlot", "Invalid time slot format.");
-                            // Repopulate DoctorsList if returning to view with errors
-                            var doctors = await _context.Doctors.Select(d => new { d.DoctorId, d.Name, d.Specialization }).ToListAsync();
-                            model.DoctorsList = new SelectList(doctors, "DoctorId", "Name", model.DoctorId, "Specialization");
-                            return View("~/Views/Home/BookAppointment.cshtml", model);
+                            ModelState.AddModelError("TimeSlot", "End time in slot must be after start time.");
+                        }
+                        else
+                        {
+                            timeSlotValidlyParsed = true;
                         }
                     }
-
-                    DateTime appointmentDateTime = model.AppointmentDate.Date.Add(parsedTime.TimeOfDay);
-
-                    // Optional: Check if the selected doctor exists (though SelectList should prevent invalid IDs)
-                    var doctorExists = await _context.Doctors.AnyAsync(d => d.DoctorId == model.DoctorId);
-                    if (!doctorExists)
-                    {
-                        ModelState.AddModelError("DoctorId", "Selected doctor is not valid.");
-                        // Repopulate and return
-                        var doctors = await _context.Doctors.Select(d => new { d.DoctorId, d.Name, d.Specialization }).ToListAsync();
-                        model.DoctorsList = new SelectList(doctors, "DoctorId", "Name", model.DoctorId, "Specialization");
-                        return View("~/Views/Home/BookAppointment.cshtml", model);
-                    }
-
-                    // Optional: Check for conflicts (e.g., doctor already booked, patient already booked)
-                    // This can be complex and might involve checking an AvailabilitySlots table
-                    // For now, we'll keep it simple.
-
-                    var newAppointment = new Appointment
-                    {
-                        PatientId = patientIdFromSession.Value,
-                        DoctorId = model.DoctorId,
-                        AppointmentDateTime = appointmentDateTime,
-                        Status = "Scheduled", // Initial status
-                        Issue = model.Issue
-                        // BookedAvailabilitySlotId = null; // If not directly using specific slots yet
-                    };
-
-                    _context.Appointments.Add(newAppointment);
-                    await _context.SaveChangesAsync();
-
-                    _logger.LogInformation($"Appointment booked successfully for Patient ID {patientIdFromSession.Value} with Doctor ID {model.DoctorId} on {newAppointment.AppointmentDateTime}");
-                    TempData["SuccessMessage"] = $"Appointment with Dr. {(_context.Doctors.Find(model.DoctorId)?.Name ?? "selected doctor")} on {appointmentDateTime:MMMM dd, yyyy 'at' hh:mm tt} has been successfully requested.";
-                    return RedirectToAction("PatientDashboard");
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Error booking appointment for Patient ID {PatientId}", patientIdFromSession.Value);
-                    ModelState.AddModelError("", "An unexpected error occurred while booking the appointment. Please try again.");
                 }
             }
 
-            // If ModelState is invalid, repopulate necessary data for the view
-            var allDoctors = await _context.Doctors.Select(d => new { d.DoctorId, d.Name, d.Specialization }).ToListAsync();
-            model.DoctorsList = new SelectList(allDoctors, "DoctorId", "Name", model.DoctorId, "Specialization");
-            // The AvailableTimeSlots list is already part of the model, so it will be re-rendered.
+            if (!ModelState.IsValid)
+            {
+                await RepopulateBookAppointmentViewModelAsync(model);
+                return View("~/Views/Home/BookAppointment.cshtml", model);
+            }
+
+            if (!timeSlotValidlyParsed)
+            {
+                _logger.LogWarning("Time slot parsing failed logic path. TimeSlot: {TimeSlot}", model.TimeSlot);
+                // ModelState.AddModelError("TimeSlot", "The selected time slot could not be processed."); // Optionally add a generic error
+                await RepopulateBookAppointmentViewModelAsync(model);
+                return View("~/Views/Home/BookAppointment.cshtml", model);
+            }
+
+            DateTime appointmentStartDateTime = model.AppointmentDate.Date.Add(parsedStartTime.TimeOfDay);
+            DateTime appointmentEndDateTime = model.AppointmentDate.Date.Add(parsedEndTime.TimeOfDay);
+
+            bool patientHasConflict = await _context.Appointments
+                .AnyAsync(a => a.PatientId == patientIdFromSession.Value &&
+                               a.AppointmentDateTime < appointmentEndDateTime &&
+                               a.AppointmentDateTime.AddHours(1) > appointmentStartDateTime &&
+                               a.Status != "Cancelled" && a.Status != "Completed");
+
+            if (patientHasConflict)
+            {
+                ModelState.AddModelError("", $"You already have an overlapping appointment around {appointmentStartDateTime:hh:mm tt} on {model.AppointmentDate:MMMM dd, yyyy}.");
+            }
+
+            bool doctorHasConflict = await _context.Appointments
+                .AnyAsync(a => a.DoctorId == model.DoctorId &&
+                               a.AppointmentDateTime < appointmentEndDateTime &&
+                               a.AppointmentDateTime.AddHours(1) > appointmentStartDateTime &&
+                               a.Status != "Cancelled");
+
+            if (doctorHasConflict)
+            {
+                ModelState.AddModelError("", $"The selected doctor is not available for the period {appointmentStartDateTime:hh:mm tt} - {appointmentEndDateTime:hh:mm tt} on {model.AppointmentDate:MMMM dd, yyyy}. Please choose another time or doctor.");
+            }
+
+            if (!ModelState.IsValid)
+            {
+                await RepopulateBookAppointmentViewModelAsync(model);
+                return View("~/Views/Home/BookAppointment.cshtml", model);
+            }
+
+            try
+            {
+                var newAppointment = new Appointment
+                {
+                    PatientId = patientIdFromSession.Value,
+                    DoctorId = model.DoctorId,
+                    AppointmentDateTime = appointmentStartDateTime,
+                    Status = "Scheduled",
+                    Issue = model.Issue
+                };
+
+                _context.Appointments.Add(newAppointment);
+                await _context.SaveChangesAsync();
+
+                _logger.LogInformation($"Appointment booked: PatientID {patientIdFromSession.Value}, DoctorID {model.DoctorId}, DateTime {appointmentStartDateTime}");
+                TempData["SuccessMessage"] = $"Appointment successfully requested for {appointmentStartDateTime:MMMM dd, yyyy 'at' hh:mm tt}.";
+                return RedirectToAction("PatientDashboard");
+            }
+            catch (DbUpdateException dbEx)
+            {
+                _logger.LogError(dbEx, "Database error booking appointment for Patient ID {PatientId}", patientIdFromSession.Value);
+                ModelState.AddModelError("", "A database error occurred. Please try again. If the problem persists, contact support.");
+                TempData["BookingErrorMessage"] = "A database error occurred while booking your appointment.";
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error booking appointment for Patient ID {PatientId}", patientIdFromSession.Value);
+                ModelState.AddModelError("", "An unexpected error occurred. Please try again.");
+                TempData["BookingErrorMessage"] = "An unexpected error occurred while booking your appointment.";
+            }
+
+            await RepopulateBookAppointmentViewModelAsync(model);
             return View("~/Views/Home/BookAppointment.cshtml", model);
         }
 
+        private async Task RepopulateBookAppointmentViewModelAsync(BookAppointmentViewModel model)
+        {
+            var doctors = await _context.Doctors
+                                    .OrderBy(d => d.Name)
+                                    .Select(d => new { d.DoctorId, NameAndSpec = $"{d.Name} ({d.Specialization})" })
+                                    .ToListAsync();
+            model.DoctorsList = new SelectList(doctors, "DoctorId", "NameAndSpec", model.DoctorId);
+        }
 
-        // === PATIENT FORGOT PASSWORD (Initial DB check) ===
+
+        // === PATIENT FORGOT PASSWORD ===
         [HttpGet]
         public IActionResult PatientForgotPassword()
         {
@@ -346,7 +469,7 @@ namespace Patient_Appointment_Management_System.Controllers
             if (ModelState.IsValid)
             {
                 var patientExists = await _context.Patients.AnyAsync(p => p.Email == model.Email);
-                // Business logic for sending reset link would go here
+                _logger.LogInformation($"Forgot password attempt for email: {model.Email}. Patient exists: {patientExists}");
                 TempData["ForgotPasswordMessage"] = "If an account with that email address exists, a password reset link has been sent. Please check your inbox (and spam folder).";
                 return RedirectToAction("PatientLogin");
             }
