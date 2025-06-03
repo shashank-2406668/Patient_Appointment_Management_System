@@ -36,7 +36,7 @@ namespace Patient_Appointment_Management_System.Models
         [Required(ErrorMessage = "Date of Birth is required.")]
         [Column(TypeName = "date")]
         [DataType(DataType.Date)]
-        public DateTime Dob { get; set; }
+        public DateTime? Dob { get; set; }
 
         // Navigation property for related appointments
         public virtual ICollection<Appointment> Appointments { get; set; } = new List<Appointment>();

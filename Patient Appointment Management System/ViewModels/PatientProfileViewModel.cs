@@ -28,7 +28,7 @@ namespace Patient_Appointment_Management_System.ViewModels
 
         [Required(ErrorMessage = "Date of Birth is required.")] // If editable and required
         [DataType(DataType.Date)]
-        public DateTime Dob { get; set; } // <<<< MAKE THIS NON-NULLABLE if it's directly mapped
+        public DateTime? Dob { get; set; } // <<<< MAKE THIS NON-NULLABLE if it's directly mapped
 
         [StringLength(500)]
         [Display(Name = "Address")]

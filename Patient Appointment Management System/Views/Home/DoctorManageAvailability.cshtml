@@ -1,8 +1,9 @@
 ﻿@model Patient_Appointment_Management_System.ViewModels.DoctorManageAvailabilityViewModel
 @{
-    Layout = null;
+    Layout = null; // Or your doctor-specific layout e.g., "~/Views/Shared/_DoctorLayout.cshtml"
     ViewData["Title"] = "Manage Availability";
 
+    // Time slots for dropdowns (HH:mm:ss format for TimeSpan binding)
     var timeSlots = new List<SelectListItem>
     {
         new SelectListItem { Value = "09:00:00", Text = "09:00 AM" }, new SelectListItem { Value = "09:30:00", Text = "09:30 AM" },
@@ -13,8 +14,15 @@
         new SelectListItem { Value = "14:00:00", Text = "02:00 PM" }, new SelectListItem { Value = "14:30:00", Text = "02:30 PM" },
         new SelectListItem { Value = "15:00:00", Text = "03:00 PM" }, new SelectListItem { Value = "15:30:00", Text = "03:30 PM" },
         new SelectListItem { Value = "16:00:00", Text = "04:00 PM" }, new SelectListItem { Value = "16:30:00", Text = "04:30 PM" },
-        new SelectListItem { Value = "17:00:00", Text = "05:00 PM" }
+        new SelectListItem { Value = "17:00:00", Text = "05:00 PM" }, new SelectListItem { Value = "17:30:00", Text = "05:30 PM" },
+        new SelectListItem { Value = "18:00:00", Text = "06:00 PM" }
+        // Add more or adjust as needed. Ensure EndTime options can go beyond StartTime options if you implement dynamic filtering.
     };
+    string? antiForgeryToken = null;
+    if (Context.RequestServices.GetService<Microsoft.AspNetCore.Antiforgery.IAntiforgery>() != null)
+    {
+        antiForgeryToken = Context.RequestServices.GetService<Microsoft.AspNetCore.Antiforgery.IAntiforgery>()?.GetAndStoreTokens(Context).RequestToken;
+    }
 }
 
 <!doctype html>
@@ -29,6 +37,7 @@
         body {
             background-color: #e9faff;
             font-family: 'Arial', sans-serif;
+            padding-top: 80px; /* Increased padding for fixed navbar */
         }
 
         .navbar-custom {
@@ -36,9 +45,15 @@
             color: white;
         }
 
-            .navbar-custom .navbar-brand, .navbar-custom .nav-link {
+            .navbar-custom .navbar-brand,
+            .navbar-custom .nav-link {
                 color: white;
             }
+
+                .navbar-custom .nav-link.active {
+                    font-weight: bold;
+                    border-bottom: 2px solid white;
+                }
 
                 .navbar-custom .nav-link:hover {
                     color: #d1ecf1;
@@ -70,26 +85,63 @@
         }
 
         .table th {
-            background-color: #007bff;
-            color: white;
+            background-color: #f8f9fa; /* Lighter gray for table headers */
+            color: #212529;
+            font-weight: 600;
         }
 
         .form-label {
             font-weight: bold;
         }
+
+        .validation-summary-errors ul {
+            list-style-type: none;
+            padding-left: 0;
+            margin-bottom: 1rem;
+            color: #dc3545; /* Bootstrap danger color */
+        }
+
+        .validation-summary-errors li {
+            /* Individual li items will inherit color */
+        }
+
+        .btn-delete-slot {
+            cursor: pointer;
+        }
+
+        .alert-container {
+            position: fixed;
+            top: 80px; /* Below navbar */
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1050; /* Above most content */
+            width: auto;
+            min-width: 300px;
+            max-width: 90%;
+        }
     </style>
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg navbar-custom p-3">
+    <nav class="navbar navbar-expand-lg navbar-custom p-3 fixed-top">
         <div class="container-fluid">
             <a class="navbar-brand" asp-controller="Doctor" asp-action="Dashboard">Doctor Portal</a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNavDoctorAvailability">
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNavDoctor" aria-controls="navbarNavDoctor" aria-expanded="false" aria-label="Toggle navigation">
                 <span class="navbar-toggler-icon" style="background-image: url('data:image/svg+xml;charset=utf8,%3Csvg viewBox=\'0 0 30 30\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cpath stroke=\'rgba%28255, 255, 255, 0.75%29\' stroke-width=\'2\' stroke-linecap=\'round\' stroke-miterlimit=\'10\' d=\'M4 7h22M4 15h22M4 23h22\'/%3E%3C/svg%3E');"></span>
             </button>
-            <div class="collapse navbar-collapse" id="navbarNavDoctorAvailability">
-                <ul class="navbar-nav me-auto">
-                    <li class="nav-item"><a class="nav-link" asp-controller="Doctor" asp-action="Dashboard"><i class="bi bi-speedometer2 me-1"></i>Dashboard</a></li>
-                    <li class="nav-item"><a class="nav-link" asp-controller="Doctor" asp-action="Profile"><i class="bi bi-person me-1"></i>My Profile</a></li>
+            <div class="collapse navbar-collapse" id="navbarNavDoctor">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item">
+                        <a class="nav-link" asp-controller="Doctor" asp-action="Dashboard"><i class="bi bi-speedometer2 me-1"></i>Dashboard</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" aria-current="page" asp-controller="Doctor" asp-action="Availability"><i class="bi bi-calendar-plus me-1"></i>Manage Availability</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" asp-controller="Doctor" asp-action="DoctorViewAppointment"><i class="bi bi-calendar-check me-1"></i>View Appointments</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" asp-controller="Doctor" asp-action="Profile"><i class="bi bi-person-circle me-1"></i>My Profile</a>
+                    </li>
                 </ul>
                 <ul class="navbar-nav">
                     <li class="nav-item">
@@ -105,33 +157,40 @@
         </div>
     </nav>
 
+    <div id="alertPlaceholder" class="alert-container"></div>
+
     <div class="container content-container mt-4">
-        <h2 style="color: #007bff;">Manage Your Availability</h2>
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2 style="color: #007bff;">@ViewData["Title"]</h2>
+        </div>
         <hr class="mb-4">
 
         @if (ViewBag.SuccessMessage != null)
         {
             <div class="alert alert-success alert-dismissible fade show" role="alert">
-                @ViewBag.SuccessMessage
+                @Html.Raw(ViewBag.SuccessMessage.ToString().Replace("\n", "<br/>"))
                 <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
             </div>
         }
         @if (ViewBag.ErrorMessage != null)
         {
             <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                @ViewBag.ErrorMessage
+                @Html.Raw(ViewBag.ErrorMessage.ToString().Replace("\n", "<br/>"))
                 <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
             </div>
         }
+
 
         <div class="card-custom mb-4">
             <div class="card-custom-header">
                 <h5><i class="bi bi-calendar-plus me-2"></i>Add New Availability Slot</h5>
             </div>
             <div class="card-custom-body">
-                <form asp-controller="Doctor" asp-action="AddAvailability" method="post">
+                <form asp-controller="Doctor" asp-action="AddAvailability" method="post" id="addAvailabilityForm">
                     @Html.AntiForgeryToken()
+                    @* Summary for property-specific errors not caught by individual spans, or general errors *@
                     <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+
                     <div class="row g-3">
                         <div class="col-md-4">
                             <label asp-for="NewSlot.Date" class="form-label"></label>
@@ -141,14 +200,14 @@
                         <div class="col-md-3">
                             <label asp-for="NewSlot.StartTime" class="form-label"></label>
                             <select asp-for="NewSlot.StartTime" asp-items="timeSlots" class="form-select">
-                                <option value="">Select Start Time</option>
+                                <option value="">-- Select Start --</option>
                             </select>
                             <span asp-validation-for="NewSlot.StartTime" class="text-danger"></span>
                         </div>
                         <div class="col-md-3">
                             <label asp-for="NewSlot.EndTime" class="form-label"></label>
                             <select asp-for="NewSlot.EndTime" asp-items="timeSlots" class="form-select">
-                                <option value="">Select End Time</option>
+                                <option value="">-- Select End --</option>
                             </select>
                             <span asp-validation-for="NewSlot.EndTime" class="text-danger"></span>
                         </div>
@@ -182,10 +241,10 @@
                             <tbody>
                                 @foreach (var slot in Model.ExistingSlots)
                                 {
-                                    <tr>
+                                    <tr id="slot-row-@slot.Id">
                                         <td>@slot.Date.ToString("yyyy-MM-dd")</td>
-                                        <td>@(new DateTime(1, 1, 1, slot.StartTime.Hours, slot.StartTime.Minutes, 0).ToString("hh:mm tt"))</td>
-                                        <td>@(new DateTime(1, 1, 1, slot.EndTime.Hours, slot.EndTime.Minutes, 0).ToString("hh:mm tt"))</td>
+                                        <td>@slot.StartTime.ToString(@"hh\:mm") AM/PM</td> @* Or use specific formatting if needed *@
+                                        <td>@slot.EndTime.ToString(@"hh\:mm") AM/PM</td>   @* Example: new DateTime(slot.EndTime.Ticks).ToString("hh:mm tt") *@
                                         <td>
                                             @if (slot.IsBooked)
                                             {
@@ -196,11 +255,17 @@
                                                 <span class="badge bg-success">Available</span>
                                             }
                                         </td>
-                                        <td>@(slot.IsBooked ? slot.PatientNameIfBooked : "N/A")</td>
+                                        <td>@(slot.IsBooked ? (slot.PatientNameIfBooked ?? "N/A") : "N/A")</td>
                                         <td>
                                             @if (!slot.IsBooked)
                                             {
-                                                <button class="btn btn-sm btn-outline-danger" disabled title="Delete not implemented">
+                                                <button class="btn btn-sm btn-outline-danger btn-delete-slot" data-slot-id="@slot.Id" title="Delete this slot">
+                                                    <i class="bi bi-trash"></i> Delete
+                                                </button>
+                                            }
+                                            else
+                                            {
+                                                <button class="btn btn-sm btn-outline-secondary" disabled title="Cannot delete a booked slot">
                                                     <i class="bi bi-trash"></i> Delete
                                                 </button>
                                             }
@@ -213,24 +278,99 @@
                 }
                 else
                 {
-                    <p class="text-center">You have not set any availability slots yet.</p>
+                    <p class="text-center">You have not set any availability slots yet, or no future slots are available.</p>
                 }
             </div>
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <footer class="text-center p-3 mt-5" style="background-color: rgba(0,0,0,0.05);">
+        &copy; @DateTime.Now.Year Your Clinic Name. All rights reserved.
+    </footer>
+
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+    @* Include jQuery Validate and Unobtrusive for client-side validation (optional but recommended) *@
+    <script src="~/lib/jquery-validation/dist/jquery.validate.min.js"></script>
+    <script src="~/lib/jquery-validation-unobtrusive/jquery.validate.unobtrusive.min.js"></script>
+
     <script>
         $(document).ready(function () {
+            // 1. Date Picker Restriction: Prevent selecting past dates
             const today = new Date().toISOString().split('T')[0];
             $(".date-select").attr("min", today);
+
+            // Optional: Prevent manual typing in date field (browsers usually handle type="date" well)
             $(".date-select").on("keydown", function (event) {
-                if (event.key === "Tab" || event.key === "Backspace" || event.key === "Delete" || event.key.startsWith("Arrow")) {
-                    return;
+                // Allow navigation keys like Tab, Backspace, Delete, Arrow keys
+                if (!(event.key === "Tab" || event.key === "Backspace" || event.key === "Delete" ||
+                      event.key.startsWith("Arrow") || event.ctrlKey || event.metaKey)) {
+                    if (event.key.length === 1 && !event.key.match(/[0-9\-\/]/)) { // Allow digits, dash, slash
+                         event.preventDefault();
+                    }
                 }
+            });
+             $(".date-select").on("paste", function (event) {
                 event.preventDefault();
             });
+
+
+            // 2. AJAX Delete Functionality
+            const antiForgeryTokenValue = "@antiForgeryToken"; // Get token from C#
+
+            $('.btn-delete-slot').on('click', function () {
+                var $button = $(this);
+                var slotId = $button.data('slot-id');
+
+                if (confirm('Are you sure you want to delete this availability slot?')) {
+                    $.ajax({
+                        url: '@Url.Action("DeleteAvailability", "Doctor")', // Make sure controller and action names are correct
+                        type: 'POST',
+                        data: {
+                            slotId: slotId,
+                            __RequestVerificationToken: antiForgeryTokenValue // Add anti-forgery token
+                        },
+                        success: function (response) {
+                            if (response.success) {
+                                $('#slot-row-' + slotId).fadeOut(500, function() { $(this).remove(); });
+                                showAlert(response.message || 'Slot deleted successfully!', 'success');
+                                // Optionally, if table becomes empty, show a message
+                                if ($('#currentAvailabilityTable tbody tr').length === 0) {
+                                    // $('#currentAvailabilityTable').parent().html('<p class="text-center">You have no future availability slots.</p>');
+                                }
+                            } else {
+                                showAlert(response.message || 'Failed to delete slot.', 'danger');
+                            }
+                        },
+                        error: function (xhr, status, error) {
+                            console.error("AJAX Error:", status, error, xhr.responseText);
+                            showAlert('An error occurred while trying to delete the slot. Please try again. ' + (xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : ''), 'danger');
+                        }
+                    });
+                }
+            });
+
+            // Helper function to show dismissible alerts dynamically
+            function showAlert(message, type) {
+                var alertPlaceholder = $('#alertPlaceholder');
+                var alertHtml = '<div class="alert alert-' + type + ' alert-dismissible fade show" role="alert">' +
+                                message +
+                                '<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>' +
+                                '</div>';
+                alertPlaceholder.html(alertHtml); // Replace previous alert
+
+                // Automatically dismiss after 5 seconds
+                setTimeout(function() {
+                    alertPlaceholder.find('.alert').alert('close');
+                }, 5000);
+            }
+
+            // If using client-side validation, ensure the form is parsed after dynamic content changes (if any)
+            // var form = $("#addAvailabilityForm");
+            // if (form.length && $.validator && $.validator.unobtrusive) {
+            //    $.validator.unobtrusive.parse(form);
+            // }
         });
     </script>
 </body>

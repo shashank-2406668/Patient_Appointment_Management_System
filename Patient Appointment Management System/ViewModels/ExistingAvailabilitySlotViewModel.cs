@@ -1,23 +1,24 @@
-﻿// File: Patient_Appointment_Management_System/ViewModels/ExistingAvailabilitySlotViewModel.cs
-using System;
+﻿using System;
 using System.ComponentModel.DataAnnotations;
 
 namespace Patient_Appointment_Management_System.ViewModels
 {
     public class ExistingAvailabilitySlotViewModel
     {
-        public int Id { get; set; } // AvailabilitySlotId
+        public int Id { get; set; }
 
-        [DisplayFormat(DataFormatString = "{0:yyyy-MM-dd}")]
+        [DataType(DataType.Date)]
         public DateTime Date { get; set; }
 
-        [DisplayFormat(DataFormatString = @"{0:hh\:mm tt}")]
+        [DataType(DataType.Time)]
+        [Display(Name = "Start Time")]
         public TimeSpan StartTime { get; set; }
 
-        [DisplayFormat(DataFormatString = @"{0:hh\:mm tt}")]
+        [DataType(DataType.Time)]
+        [Display(Name = "End Time")]
         public TimeSpan EndTime { get; set; }
         public bool IsBooked { get; set; }
-        public string? PatientNameIfBooked { get; set; } // To show which patient booked it
-        public int? AppointmentIdIfBooked { get; set; } // To link to appointment details if needed
+        public string? PatientNameIfBooked { get; set; }
+        public int? AppointmentIdIfBooked { get; set; }
     }
 }

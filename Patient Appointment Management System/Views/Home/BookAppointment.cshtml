@@ -1,7 +1,8 @@
-﻿@model Patient_Appointment_Management_System.ViewModels.BookAppointmentViewModel
+﻿@* File: Patient_Appointment_Management_System/Views/Home/BookAppointment.cshtml *@
+@model Patient_Appointment_Management_System.ViewModels.BookAppointmentViewModel
 @{
-    Layout = null; // This page is self-contained
-    ViewData["Title"] = "Book Appointment";
+    Layout = null; // Or your patient-specific layout e.g., "~/Views/Shared/_PatientLayout.cshtml"
+    ViewData["Title"] = "Book New Appointment";
 }
 
 <!doctype html>
@@ -9,36 +10,47 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>@ViewData["Title"]</title>
+    <title>@ViewData["Title"] - Patient Portal</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
     <style>
         body {
             background: linear-gradient(to bottom, #e3f2fd, #bbdefb);
             font-family: 'Arial', sans-serif;
-            margin: 0;
-            padding: 0;
             min-height: 100vh;
+            padding-top: 80px; /* Account for fixed navbar */
         }
+
+        .navbar-custom {
+            background-color: #1976d2; /* Patient portal color */
+        }
+
+            .navbar-custom .navbar-brand,
+            .navbar-custom .nav-link {
+                color: white;
+            }
+
+                .navbar-custom .nav-link.active {
+                    font-weight: bold;
+                    border-bottom: 2px solid white;
+                }
+
+                .navbar-custom .nav-link:hover {
+                    color: #bbdefb;
+                }
 
         .appointment-form {
             background-color: #ffffff;
-            padding: 20px;
+            padding: 30px;
             border-radius: 10px;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-            margin-top: 30px;
-            transition: transform 0.3s, box-shadow 0.3s;
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
+            margin-top: 20px;
         }
 
-            .appointment-form:hover {
-                transform: translateY(-5px);
-                box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2);
-            }
-
             .appointment-form h2 {
-                margin-bottom: 20px;
+                margin-bottom: 25px;
                 text-align: center;
-                color: #007bff;
+                color: #1976d2;
             }
 
         .form-label {
@@ -47,72 +59,91 @@
         }
 
         .btn-primary {
-            background-color: #007bff;
-            border: none;
+            background-color: #1976d2;
+            border-color: #1976d2;
         }
 
             .btn-primary:hover {
-                background-color: #0056b3;
-            }
-
-        .btn-secondary {
-            background-color: #6c757d;
-            border: none;
-        }
-
-            .btn-secondary:hover {
-                background-color: #5a6268;
+                background-color: #1565c0;
+                border-color: #1565c0;
             }
 
         .time-slot-container {
             display: flex;
             flex-wrap: wrap;
             gap: 10px;
+            margin-top: 10px;
+            max-height: 200px; /* Or adjust as needed */
+            overflow-y: auto;
+            padding: 10px;
+            border: 1px solid #ced4da; /* Standard Bootstrap input border color */
+            border-radius: .25rem;
+            min-height: 60px; /* Ensure "Loading..." message is visible */
         }
 
             .time-slot-container .form-check {
-                flex: 1 1 calc(50% - 10px); /* Adjust for 2 columns */
-                margin-bottom: 0.5rem; /* Added for better spacing */
+                flex: 0 0 calc(50% - 10px); /* Two columns, adjust if needed */
+                margin-bottom: 0.5rem; /* Spacing between rows of radio buttons */
             }
 
-        .navbar-custom {
-            background-color: #007bff;
-            padding: 1rem;
+            .time-slot-container .form-check-label {
+                cursor: pointer;
+                width: 100%; /* Make label take full width for easier clicking */
+            }
+
+        .time-slot-loading, .time-slot-message {
+            color: #6c757d; /* Bootstrap secondary text color */
+            font-style: italic;
+            width: 100%;
+            text-align: center;
+            padding: 10px 0;
         }
 
-            .navbar-custom .navbar-brand,
-            .navbar-custom .nav-link {
-                color: white;
-            }
+        #alertPlaceholderBookAppointment {
+            position: fixed;
+            top: 80px; /* Adjust if navbar height changes */
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 2000; /* High z-index */
+            width: auto;
+            min-width: 300px;
+            max-width: 90%;
+        }
 
-                .navbar-custom .nav-link:hover {
-                    color: #d1ecf1;
-                }
-
-        .text-danger { /* Standard Bootstrap class for validation messages */
-            font-size: 0.875em;
+        .validation-summary-errors ul {
+            list-style-type: none;
+            padding-left: 0;
+            margin-bottom: 1rem;
         }
     </style>
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg navbar-custom">
+    <nav class="navbar navbar-expand-lg navbar-custom fixed-top p-3">
         <div class="container-fluid">
             <a class="navbar-brand" asp-controller="Patient" asp-action="PatientDashboard">Patient Portal</a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNavBookAppointment">
-                <span class="navbar-toggler-icon"></span>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNavPatientBook" aria-controls="navbarNavPatientBook" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon" style="background-image: url('data:image/svg+xml;charset=utf8,%3Csvg viewBox=\'0 0 30 30\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cpath stroke=\'rgba%28255, 255, 255, 0.75%29\' stroke-width=\'2\' stroke-linecap=\'round\' stroke-miterlimit=\'10\' d=\'M4 7h22M4 15h22M4 23h22\'/%3E%3C/svg%3E');"></span>
             </button>
-            <div class="collapse navbar-collapse" id="navbarNavBookAppointment">
+            <div class="collapse navbar-collapse" id="navbarNavPatientBook">
                 <ul class="navbar-nav ms-auto">
+                    @* Changed me-auto to ms-auto to push to right *@
                     <li class="nav-item">
-                        <a class="nav-link" asp-controller="Patient" asp-action="PatientDashboard">Back to Dashboard</a>
+                        <a class="nav-link" asp-controller="Patient" asp-action="PatientDashboard"><i class="bi bi-speedometer2 me-1"></i>Dashboard</a>
                     </li>
-                    @* Simple Logout (if user is logged in) - You might have a more robust session check *@
+                    <li class="nav-item">
+                        <a class="nav-link active" aria-current="page" asp-controller="Patient" asp-action="BookAppointment"><i class="bi bi-calendar-plus-fill me-1"></i>Book Appointment</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" asp-controller="Patient" asp-action="PatientProfile"><i class="bi bi-person-circle me-1"></i>My Profile</a>
+                    </li>
                     @if (Context.Session.GetString("PatientLoggedIn") == "true")
                     {
                         <li class="nav-item">
                             <form asp-controller="Patient" asp-action="PatientLogout" method="post" class="d-inline">
                                 @Html.AntiForgeryToken()
-                                <button type="submit" class="nav-link btn btn-link" style="color: white; text-decoration: none; padding: 0.5rem 1rem;">Logout</button>
+                                <button type="submit" class="nav-link btn btn-link" style="color: white; text-decoration: none; padding: 0.5rem 1rem;">
+                                    <i class="bi bi-box-arrow-right me-1"></i>Logout
+                                </button>
                             </form>
                         </li>
                     }
@@ -121,35 +152,41 @@
         </div>
     </nav>
 
-    <div class="container mt-5">
+    <div id="alertPlaceholderBookAppointment"></div>
+
+    <div class="container mt-4">
+        @* Reduced top margin slightly *@
         <div class="row justify-content-center">
             <div class="col-md-8 col-lg-7 appointment-form">
-                <h2><i class="bi bi-calendar-plus me-2"></i>Book an Appointment</h2>
-                <hr class="mb-4">
+                <h2 class="mb-4"><i class="bi bi-calendar-plus-fill me-2"></i>@ViewData["Title"]</h2>
 
-                @if (TempData["SuccessMessage"] != null)
+                @* Display TempData messages here if preferred over ViewBag for general page messages *@
+                @{
+                    var successMessage = TempData["SuccessMessage"]?.ToString();
+                    var errorMessage = TempData["ErrorMessage"]?.ToString() ?? TempData["BookingErrorMessage"]?.ToString(); // Combine error messages
+                }
+                @if (!string.IsNullOrEmpty(successMessage))
                 {
                     <div class="alert alert-success alert-dismissible fade show" role="alert">
-                        @TempData["SuccessMessage"]
+                        @Html.Raw(successMessage.Replace("\n", "<br/>"))
                         <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                     </div>
                 }
-                @if (TempData["ErrorMessage"] != null)
+                @if (!string.IsNullOrEmpty(errorMessage))
                 {
                     <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                        @TempData["ErrorMessage"]
+                        @Html.Raw(errorMessage.Replace("\n", "<br/>"))
                         <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                     </div>
                 }
 
-
-                <form asp-controller="Patient" asp-action="BookAppointment" method="post" id="appointmentForm">
+                <form asp-controller="Patient" asp-action="BookAppointment" method="post" id="bookAppointmentForm">
                     @Html.AntiForgeryToken()
                     <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
 
                     <div class="mb-3">
                         <label asp-for="DoctorId" class="form-label"></label>
-                        <select asp-for="DoctorId" asp-items="Model.DoctorsList" class="form-select">
+                        <select asp-for="DoctorId" asp-items="Model.DoctorsList" class="form-select" id="doctorIdSelect">
                             <option value="">-- Select a Doctor --</option>
                         </select>
                         <span asp-validation-for="DoctorId" class="text-danger"></span>
@@ -157,83 +194,185 @@
 
                     <div class="mb-3">
                         <label asp-for="AppointmentDate" class="form-label"></label>
-                        <input asp-for="AppointmentDate" type="date" class="form-control" id="appointmentDate" />
+                        <input asp-for="AppointmentDate" type="date" class="form-control" id="appointmentDateInput" />
                         <span asp-validation-for="AppointmentDate" class="text-danger"></span>
                     </div>
 
                     <div class="mb-3">
-                        <label asp-for="TimeSlot" class="form-label"></label>
-                        <div class="time-slot-container">
-                            @if (Model.AvailableTimeSlots != null)
+                        <label asp-for="SelectedAvailabilitySlotId" class="form-label"></label>
+                        <div id="timeSlotContainer" class="time-slot-container">
+                            @* Render pre-populated slots if they exist in the model (e.g., after a POST error) *@
+                            @if (Model.AvailableTimeSlots != null && Model.AvailableTimeSlots.Any())
                             {
                                 foreach (var slot in Model.AvailableTimeSlots)
                                 {
+                                    var radioId = "slot_" + slot.Value; // slot.Value is AvailabilitySlotId
                                     <div class="form-check">
-                                        <input class="form-check-input" type="radio" asp-for="TimeSlot" id="slot_@slot.Replace(" ","").Replace(":","").Replace("-","")" value="@slot">
-                                        <label class="form-check-label" for="slot_@slot.Replace(" ","").Replace(":","").Replace("-","")">@slot</label>
+                                        <input class="form-check-input" type="radio"
+                                               name="@Html.NameFor(m => m.SelectedAvailabilitySlotId)"
+                                               id="@radioId" value="@slot.Value"
+                                               checked="@(Model.SelectedAvailabilitySlotId.ToString() == slot.Value)"
+                                               data-val="true" data-val-required="Please select a time slot." />
+                                        <label class="form-check-label" for="@radioId">@slot.Text</label>
                                     </div>
                                 }
                             }
                             else
                             {
-                                <p>No time slots available.</p>
+                                <p class="time-slot-message">Please select a doctor and date to see available times.</p>
                             }
                         </div>
-                        <span asp-validation-for="TimeSlot" class="text-danger"></span>
+                        <span asp-validation-for="SelectedAvailabilitySlotId" class="text-danger"></span>
                     </div>
 
                     <div class="mb-3">
                         <label asp-for="Issue" class="form-label"></label>
-                        <textarea asp-for="Issue" class="form-control" rows="3" placeholder="Please describe your medical issue briefly"></textarea>
+                        <textarea asp-for="Issue" class="form-control" rows="3" placeholder="Briefly describe your medical issue..."></textarea>
                         <span asp-validation-for="Issue" class="text-danger"></span>
                     </div>
 
-                    <button type="submit" class="btn btn-primary"><i class="bi bi-check-circle me-1"></i>Request Appointment</button>
-                    <a asp-controller="Patient" asp-action="PatientDashboard" class="btn btn-secondary btn-sm ms-2 float-end">
-                        <i class="bi bi-arrow-left me-1"></i>Back to Dashboard
-                    </a>
+                    <div class="d-grid gap-2 mt-4">
+                        <button type="submit" class="btn btn-primary btn-lg"><i class="bi bi-check-circle-fill me-2"></i>Request Appointment</button>
+                    </div>
                 </form>
             </div>
         </div>
     </div>
 
     <footer class="text-center p-3 mt-5" style="background-color: rgba(0,0,0,0.05);">
-        &copy; @DateTime.Now.Year HS Hospital. All rights reserved.
+        &copy; @DateTime.Now.Year Your Clinic Name. All rights reserved.
     </footer>
 
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-
-    @* Include jQuery Validate and Unobtrusive for client-side validation (optional but recommended) *@
     <script src="~/lib/jquery-validation/dist/jquery.validate.min.js"></script>
     <script src="~/lib/jquery-validation-unobtrusive/jquery.validate.unobtrusive.min.js"></script>
 
     <script>
         $(document).ready(function () {
-            // Get the current date in YYYY-MM-DD format
-            const today = new Date().toISOString().split('T')[0];
+            const doctorSelect = $('#doctorIdSelect');
+            const dateInput = $('#appointmentDateInput');
+            const timeSlotContainer = $('#timeSlotContainer');
+            const validationMessageForSlots = $('span[data-valmsg-for="SelectedAvailabilitySlotId"]'); // Get the validation span
+            const form = $("#bookAppointmentForm");
 
-            // Set the minimum date for the appointment date input to today
-            $("#appointmentDate").attr("min", today);
+            // Set min date for appointment date input
+            const today = new Date();
+            const minDate = new Date(today);
+            // minDate.setDate(today.getDate() + 1); // Example: Make minimum date tomorrow. For today, use today.
+            dateInput.attr('min', minDate.toISOString().split('T')[0]);
 
-            // Prevent manual input in the date field (optional, date type usually handles this well)
-            $("#appointmentDate").on("keydown", function (event) {
-                // Allow navigation keys like Tab, Backspace, Delete, Arrow keys
-                if (event.key.length === 1 && !event.ctrlKey && !event.altKey && !event.metaKey) {
-                     event.preventDefault(); // Prevent direct typing
+
+            function fetchAvailableTimeSlots() {
+                const doctorId = doctorSelect.val();
+                const appointmentDateValue = dateInput.val(); // This will be "YYYY-MM-DD" string
+
+                console.log("Attempting to fetch slots. Doctor:", doctorId, "Date:", appointmentDateValue);
+
+                validationMessageForSlots.text('').removeClass('field-validation-error').addClass('field-validation-valid'); // Clear validation message
+                timeSlotContainer.html('<p class="time-slot-loading"><span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Loading available times...</p>');
+
+                if (doctorId && appointmentDateValue) {
+                    $.ajax({
+                        url: '@Url.Action("GetAvailableTimeSlots", "Patient")',
+                        type: 'GET',
+                        data: {
+                            doctorId: doctorId,
+                            appointmentDate: appointmentDateValue // Send date as string, MVC will bind to DateTime
+                        },
+                        success: function (slots) {
+                            console.log("Slots received from server:", slots);
+                            timeSlotContainer.empty();
+                            if (slots && slots.length > 0) {
+                                $.each(slots, function (index, slot) {
+                                    // slot.value is AvailabilitySlotId (string from JSON), slot.text is "HH:mm AM/PM - HH:mm AM/PM"
+                                    const radioId = 'slot_' + slot.value.replace(/[^a-zA-Z0-9]/g, ""); // Sanitize ID
+                                    const radioInput = $('<input>')
+                                        .addClass('form-check-input')
+                                        .attr('type', 'radio')
+                                        .attr('name', '@Html.NameFor(m => m.SelectedAvailabilitySlotId)')
+                                        .attr('id', radioId)
+                                        .attr('value', slot.value)
+                                        .attr('data-val', 'true')
+                                        .attr('data-val-required', 'Please select a time slot.');
+
+                                    // Check if this slot was the one previously selected (e.g., after validation error)
+                                    if ('@Model.SelectedAvailabilitySlotId' == slot.value) {
+                                        radioInput.prop('checked', true);
+                                    }
+
+                                    const label = $('<label>')
+                                        .addClass('form-check-label')
+                                        .attr('for', radioId)
+                                        .text(slot.text);
+
+                                    const formCheckDiv = $('<div>').addClass('form-check').append(radioInput).append(label);
+                                    timeSlotContainer.append(formCheckDiv);
+                                });
+
+                                // Re-parse the form for unobtrusive validation after adding new elements
+                                if (form.length && $.validator && $.validator.unobtrusive) {
+                                   form.removeData("validator").removeData("unobtrusiveValidation"); // Remove existing validation data
+                                   $.validator.unobtrusive.parse(form); // Re-parse the form
+                                }
+
+                            } else {
+                                timeSlotContainer.html('<p class="time-slot-message">No available time slots for the selected doctor and date. Please try another selection.</p>');
+                            }
+                        },
+                        error: function (xhr, status, error) {
+                            console.error("AJAX Error fetching time slots:", status, error, xhr.responseText);
+                            timeSlotContainer.html('<p class="time-slot-message text-danger">Could not load time slots. Please try refreshing.</p>');
+                            showAlertBookAppointment('Error loading time slots. ' + (xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : 'Please check your connection and try again.'), 'danger');
+                        }
+                    });
+                } else {
+                    console.log("Doctor ID or Appointment Date not selected, clearing slots.");
+                    timeSlotContainer.html('<p class="time-slot-message">Please select a doctor and date to see available times.</p>');
                 }
-            });
+            }
 
-            $("#appointmentDate").on("paste", function (event) {
-                event.preventDefault();
-            });
+            doctorSelect.change(fetchAvailableTimeSlots);
+            dateInput.change(fetchAvailableTimeSlots);
 
-            // The form will now submit to the server.
-            // Client-side validation will be handled by jQuery Unobtrusive Validation if included.
-            // The "Please select a time slot" issue should be resolved because:
-            // 1. `asp-for="TimeSlot"` correctly sets the `name` attribute for all radio buttons.
-            // 2. The `[Required]` attribute on `BookAppointmentViewModel.TimeSlot` will be enforced
-            //    by server-side validation and client-side unobtrusive validation.
+            // Initial check if the model already has values (e.g. from a POST error redirect that repopulated the model)
+            // The server-side repopulation of Model.AvailableTimeSlots will render them directly.
+            // If Model.AvailableTimeSlots is empty but DoctorId and AppointmentDate are set, then fetch.
+            if (!@Json.Serialize(Model.AvailableTimeSlots.Any()) && doctorSelect.val() && dateInput.val()) {
+                 console.log("Initial load: No pre-rendered slots, but doctor and date are selected. Fetching slots.");
+                 fetchAvailableTimeSlots();
+            } else if (@Json.Serialize(Model.AvailableTimeSlots.Any())) {
+                console.log("Initial load: Slots were pre-rendered by the server.");
+                 // If slots were pre-rendered by the server (e.g., after a POST with errors),
+                 // ensure unobtrusive validation is parsed for them.
+                if (form.length && $.validator && $.validator.unobtrusive) {
+                   form.removeData("validator").removeData("unobtrusiveValidation");
+                   $.validator.unobtrusive.parse(form);
+                }
+            }
+
+
+             // Helper function to show dismissible alerts
+            function showAlertBookAppointment(message, type) {
+                var alertPlaceholder = $('#alertPlaceholderBookAppointment');
+                alertPlaceholder.empty(); // Clear previous alerts
+                var alertHtml = '<div class="alert alert-' + type + ' alert-dismissible fade show" role="alert">' +
+                                message +
+                                '<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>' +
+                                '</div>';
+                alertPlaceholder.append(alertHtml); // Append new alert
+
+                // Automatically dismiss after 7 seconds
+                setTimeout(function() {
+                    // Use Bootstrap's alert 'close' method if available, otherwise just fadeOut
+                    var alertInstance = bootstrap.Alert.getInstance(alertPlaceholder.find('.alert').get(0));
+                    if (alertInstance) {
+                        alertInstance.close();
+                    } else {
+                        alertPlaceholder.find('.alert').fadeOut(500, function() { $(this).remove(); });
+                    }
+                }, 7000);
+            }
         });
     </script>
 </body>

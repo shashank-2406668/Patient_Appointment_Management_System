@@ -33,9 +33,10 @@ namespace Patient_Appointment_Management_System.Data
                 entity.HasIndex(e => e.Email).IsUnique(); // Unique constraint for email
                 entity.Property(e => e.Name).IsRequired().HasMaxLength(100);
                 entity.Property(e => e.PasswordHash).IsRequired();
-                entity.Property(e => e.Phone).IsRequired().HasMaxLength(20);
-                entity.Property(e => e.Address).IsRequired().HasMaxLength(255);
-                entity.Property(e => e.Dob).IsRequired().HasColumnType("date");
+                // Assuming Phone, Address, and Dob are part of your Patient model
+                entity.Property(e => e.Phone).IsRequired(false).HasMaxLength(20); // Made optional as per typical design
+                entity.Property(e => e.Address).IsRequired(false).HasMaxLength(255); // Made optional
+                entity.Property(e => e.Dob).HasColumnType("date").IsRequired(false); // Made optional
             });
 
             // --- Doctor ---
@@ -48,7 +49,7 @@ namespace Patient_Appointment_Management_System.Data
                 entity.Property(e => e.Name).IsRequired().HasMaxLength(100);
                 entity.Property(e => e.PasswordHash).IsRequired();
                 entity.Property(e => e.Specialization).IsRequired().HasMaxLength(100);
-                entity.Property(e => e.Phone).IsRequired().HasMaxLength(20);
+                entity.Property(e => e.Phone).IsRequired(false).HasMaxLength(20); // Made optional
             });
 
             // --- Admin ---
@@ -56,11 +57,11 @@ namespace Patient_Appointment_Management_System.Data
             {
                 entity.ToTable("Admins");
                 entity.HasKey(e => e.AdminId);
-                entity.Property(e => e.Email).IsRequired().HasMaxLength(100); // Making Email required for Admin too
+                entity.Property(e => e.Email).IsRequired().HasMaxLength(100);
                 entity.HasIndex(e => e.Email).IsUnique();
                 entity.Property(e => e.PasswordHash).IsRequired();
-                entity.Property(e => e.Name).HasMaxLength(100);
-                entity.Property(e => e.Role).HasMaxLength(50);
+                entity.Property(e => e.Name).IsRequired(false).HasMaxLength(100); // Made optional
+                entity.Property(e => e.Role).IsRequired(false).HasMaxLength(50); // Made optional
             });
 
             // --- Appointment ---
@@ -74,15 +75,18 @@ namespace Patient_Appointment_Management_System.Data
 
                 // Relationship: One Patient to Many Appointments
                 entity.HasOne(a => a.Patient)
-                      .WithMany(p => p.Appointments)
+                      .WithMany(p => p.Appointments) // Assumes Patient model has ICollection<Appointment> Appointments
                       .HasForeignKey(a => a.PatientId)
                       .OnDelete(DeleteBehavior.Restrict); // Prevent deleting patient if they have appointments
 
                 // Relationship: One Doctor to Many Appointments
                 entity.HasOne(a => a.Doctor)
-                      .WithMany(d => d.Appointments)
+                      .WithMany(d => d.Appointments) // Assumes Doctor model has ICollection<Appointment> Appointments
                       .HasForeignKey(a => a.DoctorId)
                       .OnDelete(DeleteBehavior.Restrict); // Prevent deleting doctor if they have appointments
+
+                // Relationship with AvailabilitySlot is defined below where AvailabilitySlot is the principal
+                // in one part of the one-to-one definition you provided.
             });
 
             // --- AvailabilitySlot ---
@@ -91,31 +95,30 @@ namespace Patient_Appointment_Management_System.Data
                 entity.ToTable("AvailabilitySlots");
                 entity.HasKey(e => e.AvailabilitySlotId);
                 entity.Property(e => e.Date).IsRequired().HasColumnType("date");
-                entity.Property(e => e.StartTime).IsRequired().HasColumnType("time");
-                entity.Property(e => e.EndTime).IsRequired().HasColumnType("time");
+                entity.Property(e => e.StartTime).IsRequired().HasColumnType("time"); // Store as TimeSpan, maps to time in DB
+                entity.Property(e => e.EndTime).IsRequired().HasColumnType("time");   // Store as TimeSpan, maps to time in DB
+                entity.Property(e => e.IsBooked).IsRequired().HasDefaultValue(false);
+
 
                 // Relationship: One Doctor to Many AvailabilitySlots
                 entity.HasOne(av => av.Doctor)
-                      .WithMany(d => d.AvailabilitySlots)
+                      .WithMany(d => d.AvailabilitySlots) // Assumes Doctor model has ICollection<AvailabilitySlot> AvailabilitySlots
                       .HasForeignKey(av => av.DoctorId)
                       .OnDelete(DeleteBehavior.Cascade); // If Doctor is deleted, their slots are also deleted
 
-                // Relationship: One AvailabilitySlot can be booked by one Appointment
-                // Appointment.BookedAvailabilitySlotId points to AvailabilitySlot.AvailabilitySlotId
-                // AvailabilitySlot.BookedByAppointmentId points to Appointment.AppointmentId
-                entity.HasOne(av => av.BookedByAppointment) // Navigation property in AvailabilitySlot
-                      .WithOne(ap => ap.BookedAvailabilitySlot) // Navigation property in Appointment
-                      .HasForeignKey<Appointment>(ap => ap.BookedAvailabilitySlotId) // FK is on Appointment table pointing to this slot
-                      .IsRequired(false) // An appointment doesn't *have* to be from a pre-defined slot
-                      .OnDelete(DeleteBehavior.SetNull); // If the slot is deleted, the FK in Appointment becomes NULL
+                // Relationship: One AvailabilitySlot can be booked by one Appointment (One-to-One)
+                // This establishes that an AvailabilitySlot *can have one* BookedByAppointment
+                // And that Appointment *can have one* BookedAvailabilitySlot (itself).
+                // The FK `BookedAvailabilitySlotId` is on the `Appointment` table.
+                entity.HasOne(av => av.BookedByAppointment) // Navigation property in AvailabilitySlot to the Appointment that booked it
+                      .WithOne(ap => ap.BookedAvailabilitySlot) // Navigation property in Appointment to the Slot it booked
+                      .HasForeignKey<Appointment>(ap => ap.BookedAvailabilitySlotId) // The FK is on the Appointment table
+                      .IsRequired(false) // An Appointment does not *have* to be booked via an AvailabilitySlot
+                                         // An AvailabilitySlot is not always booked (IsBooked flag handles this state)
+                      .OnDelete(DeleteBehavior.SetNull); // If an AvailabilitySlot is deleted, the Appointment's BookedAvailabilitySlotId becomes NULL.
+                                                         // This implies the appointment is no longer tied to a specific pre-defined slot.
+                                                         // The IsBooked flag on AvailabilitySlot should be managed by application logic.
             });
-            // This configuration ^^^ for AvailabilitySlot <-> Appointment implies:
-            // - Appointment has a nullable FK `BookedAvailabilitySlotId`
-            // - AvailabilitySlot has a nullable FK `BookedByAppointmentId`
-            // And their navigation properties link them. The `WithOne().HasForeignKey()` defines one side of the 1:1.
-            // Let's refine the one-to-one relationship to be clearer for Appointment booking a Slot.
-            // An Appointment *books* an AvailabilitySlot.
-            // An AvailabilitySlot *is booked by* an Appointment.
 
             // --- Notification ---
             modelBuilder.Entity<Notification>(entity =>
@@ -125,27 +128,33 @@ namespace Patient_Appointment_Management_System.Data
                 entity.Property(e => e.Message).IsRequired();
                 entity.Property(e => e.NotificationType).IsRequired().HasMaxLength(50);
                 entity.Property(e => e.SentDate).IsRequired();
+                entity.Property(e => e.IsRead).IsRequired().HasDefaultValue(false);
                 entity.Property(e => e.Url).HasMaxLength(255);
 
-                // Relationships for recipients (optional based on querying needs)
+                // Define FKs for recipients directly for clarity, assuming PatientId, DoctorId, AdminId are nullable ints in Notification model
                 entity.HasOne(n => n.Patient)
-                      .WithMany() // A patient can have many notifications, but Notification doesn't have a collection of Patients
+                      .WithMany() // Assuming Patient does not have a direct ICollection<Notification>
                       .HasForeignKey(n => n.PatientId)
-                      .IsRequired(false) // A notification doesn't always go to a Patient
+                      .IsRequired(false)
                       .OnDelete(DeleteBehavior.Cascade); // If patient is deleted, their notifications are too
 
                 entity.HasOne(n => n.Doctor)
-                      .WithMany()
+                      .WithMany() // Assuming Doctor does not have a direct ICollection<Notification>
                       .HasForeignKey(n => n.DoctorId)
                       .IsRequired(false)
                       .OnDelete(DeleteBehavior.Cascade);
 
                 entity.HasOne(n => n.Admin)
-                      .WithMany()
+                      .WithMany() // Assuming Admin does not have a direct ICollection<Notification>
                       .HasForeignKey(n => n.AdminId)
                       .IsRequired(false)
                       .OnDelete(DeleteBehavior.Cascade);
             });
+
+            // Consider adding unique constraints or indexes where appropriate, e.g.,
+            // modelBuilder.Entity<AvailabilitySlot>()
+            //    .HasIndex(s => new { s.DoctorId, s.Date, s.StartTime })
+            //    .IsUnique(); // This would prevent a doctor from creating the exact same slot twice.
         }
     }
 }
