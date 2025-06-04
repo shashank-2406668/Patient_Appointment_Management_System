@@ -4,8 +4,22 @@ using Patient_Appointment_Management_System.Data; // For your PatientAppointment
 // ---- Add this if you created the Services folder and IAdminService/AdminService ----
 using Patient_Appointment_Management_System.Services;
 
+// In Program.cs
+
+// ... other using statements
 
 var builder = WebApplication.CreateBuilder(args);
+
+// ... AddControllersWithViews, DbContext configuration ...
+
+builder.Services.AddScoped<IAdminService, AdminService>();
+builder.Services.AddScoped<IPatientService, PatientService>(); // <-- ADD THIS
+builder.Services.AddScoped<IDoctorService, DoctorService>();   // <-- ADD THIS
+builder.Services.AddScoped<ISystemLogService, SystemLogService>(); // <-- ADD THIS
+builder.Services.AddScoped<IConflictService, ConflictService>();   // <-- ADD THIS
+
+// ... Session Configuration ...
+// ... var app = builder.Build(); ...
 
 // Add services to the container.
 builder.Services.AddControllersWithViews();
