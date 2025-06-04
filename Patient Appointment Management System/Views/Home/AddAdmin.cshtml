@@ -1,0 +1,68 @@
+﻿@model Patient_Appointment_Management_System.ViewModels.AdminAddViewModel
+@{
+    ViewData["Title"] = "Add New Admin";
+    Layout = "~/Views/Shared/_AdminLayout.cshtml"; // Or your preferred layout (e.g., _Layout.cshtml)
+}
+
+<div class="row">
+    <div class="col-md-8 offset-md-2 col-lg-6 offset-lg-3">
+        <div class="card shadow-sm">
+            <div class="card-header">
+                <h3 class="mb-0">@ViewData["Title"]</h3>
+            </div>
+            <div class="card-body">
+                <form asp-action="AddAdmin" method="post">
+                    @Html.AntiForgeryToken()
+                    @* This summary will display model-level errors (those added with string.Empty key) *@
+                    <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+
+                    <div class="mb-3">
+                        <label asp-for="Name" class="form-label"></label>
+                        <input asp-for="Name" class="form-control" />
+                        <span asp-validation-for="Name" class="text-danger"></span>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="Email" class="form-label"></label>
+                        <input asp-for="Email" class="form-control" />
+                        <span asp-validation-for="Email" class="text-danger"></span>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="Password" class="form-label"></label>
+                        <input asp-for="Password" class="form-control" />
+                        <span asp-validation-for="Password" class="text-danger"></span>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="ConfirmPassword" class="form-label"></label>
+                        <input asp-for="ConfirmPassword" class="form-control" />
+                        <span asp-validation-for="ConfirmPassword" class="text-danger"></span>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="Role" class="form-label"></label>
+                        <input asp-for="Role" class="form-control" placeholder="Default: Admin" />
+                        <span asp-validation-for="Role" class="text-danger"></span>
+                        <small class="form-text text-muted">Optional. Examples: Admin, SuperAdmin. Defaults to 'Admin' if left empty.</small>
+                    </div>
+
+                    <div class="mt-4">
+                        <button type="submit" class="btn btn-primary me-2">
+                            <i class="fas fa-plus-circle"></i> Add Admin
+                        </button>
+                        <a asp-action="ManageUsers" class="btn btn-secondary">
+                            <i class="fas fa-times-circle"></i> Cancel
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    @{
+        await Html.RenderPartialAsync("_ValidationScriptsPartial");
+    }
+}

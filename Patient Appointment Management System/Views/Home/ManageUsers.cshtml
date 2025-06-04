@@ -1,0 +1,168 @@
+﻿@model Patient_Appointment_Management_System.ViewModels.AdminManageUsersViewModel
+@{
+    ViewData["Title"] = "Manage Users";
+    // IMPORTANT: Ensure this layout path is correct.
+    // If you have an _AdminLayout.cshtml in Views/Shared/, this is fine.
+    // Otherwise, use Layout = "~/Views/Shared/_Layout.cshtml";
+    Layout = "~/Views/Shared/_AdminLayout.cshtml";
+}
+
+<div class="container-fluid mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3 mb-0 text-gray-800">@ViewData["Title"]</h1>
+        <a asp-action="AddAdmin" asp-controller="Admin" class="btn btn-primary shadow-sm">
+            <i class="fas fa-user-plus fa-sm text-white-50"></i> Add New Admin
+        </a>
+    </div>
+
+    @if (TempData["AdminManagementMessage"] != null) // Check TempData directly for success
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            @TempData["AdminManagementMessage"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+    @if (TempData["AdminManagementError"] != null) // Check TempData directly for error
+    {
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            @TempData["AdminManagementError"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+    @* Fallback if ViewBag was used, though TempData is better for redirect messages *@
+    @if (ViewBag.SuccessMessage != null && TempData["AdminManagementMessage"] == null)
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            @ViewBag.SuccessMessage
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+    @if (ViewBag.ErrorMessage != null && TempData["AdminManagementError"] == null)
+    {
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            @ViewBag.ErrorMessage
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+
+    <div class="card shadow mb-4">
+        <div class="card-header py-3">
+            <h6 class="m-0 font-weight-bold text-primary">Administrators List</h6>
+        </div>
+        <div class="card-body">
+            @if (Model.Admins != null && Model.Admins.Any())
+            {
+                <div class="table-responsive">
+                    <table class="table table-bordered table-striped table-hover" id="adminsTable" width="100%" cellspacing="0">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Name</th>
+                                <th>Email</th>
+                                <th>Role</th>
+                                <th class="text-center">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var admin in Model.Admins)
+                            {
+                                <tr>
+                                    <td>@admin.AdminId</td>
+                                    <td>@Html.DisplayFor(modelItem => admin.Name)</td>
+                                    <td>@Html.DisplayFor(modelItem => admin.Email)</td>
+                                    <td>@Html.DisplayFor(modelItem => admin.Role)</td>
+                                    <td class="text-center">
+                                        @*
+                                        Uncomment and implement when EditAdmin and DeleteAdmin actions are ready
+                                        <a asp-action="EditAdmin" asp-controller="Admin" asp-route-id="@admin.AdminId" class="btn btn-sm btn-info me-1" title="Edit">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
+                                        <a asp-action="DeleteAdmin" asp-controller="Admin" asp-route-id="@admin.AdminId" class="btn btn-sm btn-danger" title="Delete"
+                                           onclick="return confirm('Are you sure you want to delete admin \'@admin.Name.Replace("'", "\\'")\'? This action cannot be undone.');">
+                                            <i class="fas fa-trash-alt"></i>
+                                        </a>
+                                        *@
+                                        <span class="text-muted">(Edit/Delete to be added)</span>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+            else
+            {
+                <div class="alert alert-info" role="alert">
+                    No administrators found in the system. You can add one using the "Add New Admin" button above.
+                </div>
+            }
+        </div>
+    </div>
+
+    @*
+        Placeholder for listing other user types if you expand AdminManageUsersViewModel:
+        <div class="card shadow mb-4">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-primary">Doctors List</h6>
+            </div>
+            <div class="card-body">
+                <p>Doctors table will go here...</p>
+            </div>
+        </div>
+
+        <div class="card shadow mb-4">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-primary">Patients List</h6>
+            </div>
+            <div class="card-body">
+                <p>Patients table will go here...</p>
+            </div>
+        </div>
+    *@
+
+</div> <!-- closing container-fluid -->
+
+@*
+    If you plan to use a modal for Add/Edit, you'd define it here or in a partial view.
+    Example Modal structure (needs content and trigger):
+    <div class="modal fade" id="adminActionModal" tabindex="-1" aria-labelledby="adminActionModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg"> // modal-lg for wider modal
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="adminActionModalLabel">Admin Action</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body" id="adminActionModalBody">
+                    // Content will be loaded here via JavaScript or a partial view
+                </div>
+                // Optional: Modal footer for common buttons
+                // <div class="modal-footer">
+                //    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                //    <button type="button" class="btn btn-primary" id="saveAdminActionButton">Save changes</button>
+                // </div>
+            </div>
+        </div>
+    </div>
+*@
+
+@section Scripts {
+    @{
+        await Html.RenderPartialAsync("_ValidationScriptsPartial");
+    }
+    @*
+    If you want to use client-side libraries like DataTables for enhanced table features (sorting, searching, pagination):
+    <link href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css" rel="stylesheet" />
+    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+    <script>
+        $(document).ready(function () {
+            $('#adminsTable').DataTable({
+                "pageLength": 10, // Default number of rows to display
+                "lengthMenu": [ [10, 25, 50, -1], [10, 25, 50, "All"] ], // Rows per page options
+                // Add other DataTable options as needed
+            });
+        });
+    </script>
+    *@
+}

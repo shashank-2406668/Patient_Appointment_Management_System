@@ -1,200 +1,258 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using Patient_Appointment_Management_System.ViewModels; // Make sure this using is present
+using Patient_Appointment_Management_System.ViewModels; // For all your ViewModels
+using Patient_Appointment_Management_System.Services;   // For IAdminService
+using Patient_Appointment_Management_System.Models;     // For Admin model
+using Patient_Appointment_Management_System.Utils;      // For PasswordHelper
 using System.Diagnostics;
-using System.Collections.Generic; // For List
-using System.Linq; // For Linq operations
-using System; // For StringComparison
+using System.Collections.Generic;
+using System.Linq;
+using System;
+using System.Threading.Tasks;                           // For async operations
+// using Microsoft.AspNetCore.Authorization; // Uncomment if/when you implement ASP.NET Core Identity or custom auth schemes
 
 namespace Patient_Appointment_Management_System.Controllers
 {
+    // [Authorize] // You might want to authorize the entire controller once auth is fully set up
     public class AdminController : Controller
     {
-        // Simulated data store for Admins (replace with database later)
-        private static List<AdminUserViewModel> _admins = new List<AdminUserViewModel>
+        private readonly IAdminService _adminService;
+        // If you were to use a dedicated logging service like ILogger:
+        // private readonly ILogger<AdminController> _logger;
+
+        // public AdminController(IAdminService adminService, ILogger<AdminController> logger)
+        public AdminController(IAdminService adminService)
         {
-            new AdminUserViewModel { AdminId = 1, Name = "Alice Admin", Email = "alice@system.com", Role = "Administrator" },
-            new AdminUserViewModel { AdminId = 2, Name = "Bob SuperAdmin", Email = "bob@system.com", Role = "Super Admin" }
-        };
-        private static int _nextAdminId = 3;
+            _adminService = adminService;
+            // _logger = logger; // If using ILogger
+        }
 
-        // Simulated data store for System Logs (replace with database or logging framework)
-        private static List<string> _systemLogs = new List<string>
-        {
-            $"{DateTime.Now}: System initialized.",
-            $"{DateTime.Now}: Admin Alice Admin (ID: 1) logged in.", // Example log
-        };
-
-
+        // GET: /Admin/AdminLogin
         [HttpGet]
         public IActionResult AdminLogin()
         {
-            // Clear any existing admin session on login page visit (optional)
-            // HttpContext.Session.Clear(); // If using session for admin
-            return View("~/Views/Home/AdminLogin.cshtml");
+            // URGENT: Standard path would be ~/Views/Admin/AdminLogin.cshtml
+            return View("~/Views/Home/AdminLogin.cshtml", new AdminLoginViewModel());
         }
 
+        // POST: /Admin/AdminLogin
         [HttpPost]
-        [ValidateAntiForgeryToken] // Good practice for POST actions
-        public IActionResult AdminLogin(string email, string password)
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> AdminLogin(AdminLoginViewModel model)
         {
-            Debug.WriteLine($"Admin Login Attempt - Email: {email}"); // Avoid logging passwords
-
-            if (!string.IsNullOrEmpty(email) && email.Equals("admin@example.com", StringComparison.OrdinalIgnoreCase) &&
-                !string.IsNullOrEmpty(password) && password.Equals("password123")) // Hardcoded credentials
+            if (!ModelState.IsValid)
             {
-                // Simulate setting a session or cookie for admin
-                // HttpContext.Session.SetString("AdminLoggedIn", "true");
-                // HttpContext.Session.SetString("AdminEmail", email);
-                TempData["AdminSuccessMessage"] = "Admin login successful!"; // Changed TempData key for clarity
+                // URGENT: Standard path would be ~/Views/Admin/AdminLogin.cshtml
+                return View("~/Views/Home/AdminLogin.cshtml", model);
+            }
+
+            // _logger?.LogInformation($"Admin login attempt for email: {model.Email}"); // Example with ILogger
+            Debug.WriteLine($"Admin Login Attempt - Email: {model.Email}");
+
+            var admin = await _adminService.GetAdminByEmailAsync(model.Email);
+
+            if (admin != null && PasswordHelper.VerifyPassword(model.Password, admin.PasswordHash))
+            {
+                HttpContext.Session.SetString("AdminLoggedIn", "true");
+                HttpContext.Session.SetInt32("AdminId", admin.AdminId);
+                HttpContext.Session.SetString("AdminName", admin.Name);
+                HttpContext.Session.SetString("AdminRole", admin.Role ?? "Admin"); // Ensure role is not null for session
+
+                TempData["AdminSuccessMessage"] = "Admin login successful!";
+                // _logger?.LogInformation($"Admin login successful for email: {model.Email}, AdminId: {admin.AdminId}");
                 return RedirectToAction("AdminDashboard");
             }
             else
             {
-                ViewBag.ErrorMessage = "Invalid email or password.";
-                return View("~/Views/Home/AdminLogin.cshtml");
+                // _logger?.LogWarning($"Admin login failed for email: {model.Email}");
+                ModelState.AddModelError(string.Empty, "Invalid email or password.");
+                // URGENT: Standard path would be ~/Views/Admin/AdminLogin.cshtml
+                return View("~/Views/Home/AdminLogin.cshtml", model);
             }
         }
 
+        // GET: /Admin/AdminDashboard
         [HttpGet]
         public IActionResult AdminDashboard()
         {
-            // Basic check if admin is "logged in" (simulated)
-            // if (HttpContext.Session.GetString("AdminLoggedIn") != "true")
-            // {
-            //    TempData["ErrorMessage"] = "Please log in as admin.";
-            //    return RedirectToAction("AdminLogin");
-            // }
+            if (HttpContext.Session.GetString("AdminLoggedIn") != "true")
+            {
+                TempData["ErrorMessage"] = "Please log in as admin.";
+                return RedirectToAction("AdminLogin");
+            }
 
-            if (TempData["AdminSuccessMessage"] != null)
+            if (TempData.ContainsKey("AdminSuccessMessage"))
             {
                 ViewBag.SuccessMessage = TempData["AdminSuccessMessage"];
             }
-            // Add any data needed for the dashboard view model here
+            // URGENT: Standard path would be ~/Views/Admin/AdminDashboard.cshtml
             return View("~/Views/Home/AdminDashboard.cshtml");
         }
 
-        // NEW ACTION for Admin Management page
+        // GET: /Admin/ManageUsers
+        // Fulfills "manageUsers()" by listing Admins. Can be expanded for Doctors/Patients.
         [HttpGet]
-        public IActionResult AdminManagement()
+        public async Task<IActionResult> ManageUsers()
         {
-            // Basic check if admin is "logged in" (simulated)
-            // if (HttpContext.Session.GetString("AdminLoggedIn") != "true")
-            // {
-            //    TempData["ErrorMessage"] = "Please log in as admin.";
-            //    return RedirectToAction("AdminLogin");
-            // }
-
-            var viewModel = new AdminManagementViewModel
+            if (HttpContext.Session.GetString("AdminLoggedIn") != "true")
             {
-                Admins = _admins.OrderBy(a => a.AdminId).ToList(),
-                SystemLogs = _systemLogs.ToList() // Or take a subset, order by date, etc.
+                TempData["ErrorMessage"] = "Please log in as admin.";
+                return RedirectToAction("AdminLogin");
+            }
+
+            var adminsFromDb = await _adminService.GetAllAdminsAsync();
+            var adminDisplayViewModels = adminsFromDb.Select(a => new AdminDisplayViewModel
+            {
+                AdminId = a.AdminId,
+                Name = a.Name,
+                Email = a.Email,
+                Role = a.Role
+            }).ToList();
+
+            var viewModel = new AdminManageUsersViewModel
+            {
+                Admins = adminDisplayViewModels
             };
+
+            if (TempData.ContainsKey("AdminManagementMessage")) ViewBag.SuccessMessage = TempData["AdminManagementMessage"];
+            if (TempData.ContainsKey("AdminManagementError")) ViewBag.ErrorMessage = TempData["AdminManagementError"];
+
+            // URGENT: Standard path would be ~/Views/Admin/ManageUsers.cshtml
+            // You mentioned your view is AdminManagement.cshtml, so using that path.
             return View("~/Views/Home/AdminManagement.cshtml", viewModel);
         }
 
-        // TODO: Add POST action for adding an admin (server-side)
-        /*
+        // GET: /Admin/AddAdmin
+        // Fulfills "addAdmin()"
+        [HttpGet]
+        // [Authorize(Roles = "SuperAdmin")] // Example for role-based authorization
+        public IActionResult AddAdmin()
+        {
+            if (HttpContext.Session.GetString("AdminLoggedIn") != "true")
+            {
+                TempData["ErrorMessage"] = "Please log in to perform this action.";
+                return RedirectToAction("AdminLogin");
+            }
+            // Optional: Add role-based check here from session if needed
+            // var currentAdminRole = HttpContext.Session.GetString("AdminRole");
+            // if (currentAdminRole != "SuperAdmin") { ... return RedirectToAction("ManageUsers", new { ErrorMessage = "Unauthorized"}); }
+
+            // URGENT: Standard path would be ~/Views/Admin/AddAdmin.cshtml
+            return View("~/Views/Admin/AddAdmin.cshtml", new AdminAddViewModel());
+        }
+
+        // POST: /Admin/AddAdmin
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public IActionResult AddAdmin(AddAdminViewModel model)
+        // [Authorize(Roles = "SuperAdmin")]
+        public async Task<IActionResult> AddAdmin(AdminAddViewModel model)
         {
-            // if (HttpContext.Session.GetString("AdminLoggedIn") != "true") return Unauthorized();
+            if (HttpContext.Session.GetString("AdminLoggedIn") != "true")
+            {
+                TempData["ErrorMessage"] = "Your session has expired or you are not logged in. Please log in again.";
+                return RedirectToAction("AdminLogin");
+            }
 
             if (ModelState.IsValid)
             {
-                var newAdmin = new AdminUserViewModel
+                var existingAdmin = await _adminService.GetAdminByEmailAsync(model.Email);
+                if (existingAdmin != null)
                 {
-                    AdminId = _nextAdminId++,
+                    ModelState.AddModelError("Email", "An admin with this email address already exists.");
+                    // URGENT: Standard path would be ~/Views/Admin/AddAdmin.cshtml
+                    return View("~/Views/Admin/AddAdmin.cshtml", model);
+                }
+
+                var admin = new Admin
+                {
                     Name = model.Name,
                     Email = model.Email,
-                    Role = model.Role
+                    Role = string.IsNullOrEmpty(model.Role) ? "Admin" : model.Role.Trim()
                 };
-                _admins.Add(newAdmin);
-                _systemLogs.Add($"{DateTime.Now}: New admin '{model.Name}' added by current admin.");
-                TempData["AdminManagementMessage"] = $"Admin '{model.Name}' added successfully.";
-                return RedirectToAction("AdminManagement");
+
+                bool result = await _adminService.AddAdminAsync(admin, model.Password);
+                if (result)
+                {
+                    TempData["AdminManagementMessage"] = $"Admin '{admin.Name}' added successfully.";
+                    // _logger?.LogInformation($"Admin '{admin.Name}' (ID: {admin.AdminId}) added by Admin ID: {HttpContext.Session.GetInt32("AdminId")?.ToString() ?? "N/A"}");
+                    return RedirectToAction("ManageUsers");
+                }
+                else
+                {
+                    ModelState.AddModelError(string.Empty, "An error occurred while adding the admin. Please try again or contact support.");
+                }
             }
-            // If model state is invalid, you might want to handle it differently,
-            // possibly by returning to the AdminManagement page with errors,
-            // but modals are tricky for server-side validation display without AJAX.
-            TempData["AdminManagementError"] = "Failed to add admin. Please check the details.";
-            return RedirectToAction("AdminManagement"); // Or pass the model back if you can show errors in modal
+            // URGENT: Standard path would be ~/Views/Admin/AddAdmin.cshtml
+            return View("~/Views/Admin/AddAdmin.cshtml", model);
         }
-        */
-
-        // TODO: Add POST action for deleting an admin (server-side)
-        // TODO: Add GET/POST actions for editing an admin (server-side)
 
 
+        // GET: /Admin/ViewSystemLogs
+        // Fulfills "viewSystemLogs()"
+        [HttpGet]
+        public IActionResult ViewSystemLogs()
+        {
+            if (HttpContext.Session.GetString("AdminLoggedIn") != "true")
+            {
+                TempData["ErrorMessage"] = "Please log in as admin.";
+                return RedirectToAction("AdminLogin");
+            }
+
+            // This is a placeholder. Real logging would involve a logging service (e.g., Serilog, NLog writing to a file/DB)
+            // and fetching logs from there.
+            var logs = new List<string> {
+                $"{DateTime.Now}: System log viewing initiated by {HttpContext.Session.GetString("AdminName") ?? "Admin"}.",
+                $"{DateTime.Now.AddMinutes(-5)}: Placeholder log: User login event.",
+                $"{DateTime.Now.AddMinutes(-10)}: Placeholder log: Scheduled task executed."
+                // In a real system, these would be actual log entries.
+            };
+            ViewBag.LogsTitle = "System Event Logs";
+
+            // URGENT: Standard path would be ~/Views/Admin/ViewSystemLogs.cshtml
+            return View("~/Views/Admin/ViewSystemLogs.cshtml", logs);
+        }
+
+        // POST: /Admin/AdminLogout
         [HttpPost]
         [ValidateAntiForgeryToken]
         public IActionResult AdminLogout()
         {
-            // HttpContext.Session.Clear(); // Clear admin session
-            TempData["GlobalSuccessMessage"] = "You have been successfully logged out as Admin."; // Use a consistent key
-            return RedirectToAction("Index", "Home");
+            // _logger?.LogInformation($"Admin logout for AdminId: {HttpContext.Session.GetInt32("AdminId")?.ToString() ?? "N/A"}");
+            HttpContext.Session.Clear();
+            TempData["GlobalSuccessMessage"] = "You have been successfully logged out as Admin.";
+            return RedirectToAction("Index", "Home"); // Or "AdminLogin"
         }
 
-        // Inside Patient_Appointment_Management_System/Controllers/AdminController.cs
-
-        // ... (your existing AdminLogin, AdminDashboard, etc. methods) ...
-
+        // GET: /Admin/AdminForgotPassword
         [HttpGet]
         public IActionResult AdminForgotPassword()
         {
+            // URGENT: Standard path would be ~/Views/Admin/AdminForgotPassword.cshtml
             return View("~/Views/Home/AdminForgotPassword.cshtml", new AdminForgotPasswordViewModel());
         }
 
+        // POST: /Admin/AdminForgotPassword
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public IActionResult AdminForgotPassword(AdminForgotPasswordViewModel model)
+        public async Task<IActionResult> AdminForgotPassword(AdminForgotPasswordViewModel model)
         {
             if (ModelState.IsValid)
             {
-                // TODO:
-                // 1. Check if the model.Email exists in your admin user database.
-                // 2. If it exists:
-                //    a. Generate a unique, secure password reset token.
-                //    b. Store this token in the database, associated with the admin user, along with an expiry timestamp.
-                //    c. Construct a password reset link (e.g., https://yourdomain.com/Admin/ResetPassword?token=yourtoken).
-                //    d. Send an email to model.Email containing this link.
-                // 3. If it doesn't exist, you might still show the same message to prevent email enumeration.
-
-                // For demonstration purposes, we'll set a TempData message.
-                // In a real application, you would NOT confirm if the email exists directly to the user for security reasons.
+                var admin = await _adminService.GetAdminByEmailAsync(model.Email);
+                if (admin != null)
+                {
+                    // TODO: Implement actual password reset token generation, storage, and email sending logic.
+                    // _logger?.LogInformation($"Password reset requested for admin email: {model.Email}");
+                    Debug.WriteLine($"Password reset token should be generated for {admin.Email}");
+                }
+                // Always show a generic message for security (to prevent email enumeration)
                 TempData["ForgotPasswordMessage"] = "If an account with that email address exists, a password reset link has been sent. Please check your inbox (and spam folder).";
-
-                return RedirectToAction("AdminLogin"); // Redirect to the login page
+                return RedirectToAction("AdminLogin");
             }
-
-            // If ModelState is invalid, return the view with validation errors
+            // URGENT: Standard path would be ~/Views/Admin/AdminForgotPassword.cshtml
             return View("~/Views/Home/AdminForgotPassword.cshtml", model);
         }
 
-        // You will also need actions for ResetPassword (GET to show form, POST to update password) later
-        // For example:
-        // [HttpGet]
-        // public IActionResult AdminResetPassword(string token)
-        // {
-        //     // 1. Validate the token (exists, not expired, matches a user)
-        //     // 2. If valid, show a view with password and confirm password fields.
-        //     //    Pass the token to the view (e.g., in a hidden field).
-        //     // If invalid, show an error message or redirect.
-        //     return View("~/Views/Home/AdminResetPassword.cshtml", new AdminResetPasswordViewModel { Token = token });
-        // }
-
-        // [HttpPost]
-        // [ValidateAntiForgeryToken]
-        // public IActionResult AdminResetPassword(AdminResetPasswordViewModel model)
-        // {
-        //     // 1. Validate ModelState.
-        //     // 2. Re-validate the model.Token.
-        //     // 3. If valid, update the user's password in the database.
-        //     // 4. Invalidate the token.
-        //     // 5. Redirect to login with a success message.
-        //     // If invalid, return the view with errors.
-        // }
-
-        // ... (rest of your AdminController code, e.g., AdminLogout) ...
+        // TODO: Implement EditAdmin (GET and POST) and DeleteAdmin (POST) actions
+        // for the `manageUsers()` functionality if required.
     }
 }

@@ -60,8 +60,8 @@ namespace Patient_Appointment_Management_System.Data
                 entity.Property(e => e.Email).IsRequired().HasMaxLength(100);
                 entity.HasIndex(e => e.Email).IsUnique();
                 entity.Property(e => e.PasswordHash).IsRequired();
-                entity.Property(e => e.Name).IsRequired(false).HasMaxLength(100); // Made optional
-                entity.Property(e => e.Role).IsRequired(false).HasMaxLength(50); // Made optional
+                entity.Property(e => e.Name).IsRequired().HasMaxLength(100); // Updated: Name is required
+                entity.Property(e => e.Role).IsRequired(false).HasMaxLength(50); // Role can be optional or have a default
             });
 
             // --- Appointment ---
