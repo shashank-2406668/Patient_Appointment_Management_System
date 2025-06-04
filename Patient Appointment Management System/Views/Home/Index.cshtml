@@ -6,29 +6,50 @@
     <style>
         /* Your existing, working styles including @@keyframes */
         body {
-            background: linear-gradient(to bottom, #f8f9fa, #e9ecef);
+            background: linear-gradient(to bottom, #f0f2f5, #e0e4eb); /* Softer, modern background */
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; /* Modern font */
+            color: #333;
         }
 
         .hero-section {
-            background: linear-gradient(135deg, #007bff, #6610f2);
+            background: linear-gradient(135deg, #007bff, #4CAF50); /* Blue to Green gradient */
             color: white;
-            padding: 50px 20px;
-            border-radius: 8px;
-            margin-top: 20px;
+            padding: 60px 20px; /* Increased padding */
+            border-radius: 12px; /* More rounded corners */
+            margin-top: 30px; /* Adjusted margin */
             text-align: center;
             animation: fadeIn 2s ease-in-out;
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2); /* Stronger shadow */
+            position: relative;
+            overflow: hidden; /* For pseudo-elements */
         }
 
+            .hero-section::before { /* Subtle background pattern */
+                content: '';
+                position: absolute;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" opacity="0.1"><circle cx="20" cy="20" r="15" fill="%23ffffff"/><circle cx="80" cy="80" r="15" fill="%23ffffff"/></svg>') repeat;
+                background-size: 50px;
+                opacity: 0.1;
+            }
+
             .hero-section h1 {
-                font-size: 2.5rem;
+                font-size: 3rem; /* Larger heading */
                 font-weight: bold;
+                margin-bottom: 15px;
+                text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3); /* Text shadow for pop */
             }
 
             .hero-section p {
-                font-size: 1.2rem;
+                font-size: 1.4rem; /* Larger paragraph */
+                max-width: 800px;
+                margin: 0 auto;
             }
 
-        .login-card {
+        .login-card { /* Kept for general card styling if you add more later */
             width: 100%;
             max-width: 350px;
             margin: 20px auto;
@@ -48,89 +69,350 @@
             text-align: center;
         }
 
-        .login-button {
-            width: 100%;
-            padding: 12px;
-            font-size: 1.1rem;
-            border-radius: 6px;
+        .login-button { /* Applied to the dropdown button */
+            width: auto; /* Allow button to size naturally */
+            padding: 15px 30px; /* More padding */
+            font-size: 1.2rem; /* Larger font */
+            border-radius: 8px; /* More rounded */
             margin-bottom: 10px;
+            background-color: #28a745; /* Green button */
+            border-color: #28a745;
+            transition: background-color 0.3s ease, transform 0.2s ease;
         }
 
+            .login-button:hover {
+                background-color: #218838; /* Darker green on hover */
+                transform: translateY(-2px);
+            }
+
         .carousel-item img {
-            height: 300px;
+            height: 380px; /* Slightly taller carousel */
             object-fit: cover;
-            border-radius: 8px;
+            border-radius: 12px; /* More rounded */
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15); /* Shadow for images */
         }
 
         @@keyframes fadeIn {
             from {
                 opacity: 0;
+                transform: translateY(20px);
             }
 
             to {
                 opacity: 1;
+                transform: translateY(0);
             }
         }
+
+        /* NEW STYLES FOR ADDED SECTIONS */
+        .section-heading {
+            text-align: center;
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: #0056b3; /* Darker blue */
+            margin-bottom: 40px;
+            position: relative;
+            padding-bottom: 10px;
+        }
+
+            .section-heading::after { /* Underline effect */
+                content: '';
+                position: absolute;
+                left: 50%;
+                bottom: 0;
+                transform: translateX(-50%);
+                width: 80px;
+                height: 4px;
+                background-color: #007bff;
+                border-radius: 2px;
+            }
+
+        .service-card {
+            background-color: #ffffff;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            padding: 25px;
+            text-align: center;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            height: 100%; /* Ensure cards are same height */
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+            .service-card:hover {
+                transform: translateY(-8px);
+                box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+            }
+
+            .service-card i {
+                font-size: 3.5rem; /* Larger icons */
+                color: #007bff; /* Blue icons */
+                margin-bottom: 20px;
+                animation: iconBounce 0.8s ease-in-out infinite alternate; /* Subtle animation */
+            }
+
+            .service-card h4 {
+                font-size: 1.5rem;
+                color: #333;
+                margin-bottom: 15px;
+            }
+
+            .service-card p {
+                font-size: 1rem;
+                color: #555;
+            }
+
+        .testimonial-section {
+            background-color: #f8f9fa; /* Light grey background */
+            padding: 60px 0;
+        }
+
+        .testimonial-card {
+            background-color: #ffffff;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            padding: 30px;
+            margin-bottom: 30px;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+            .testimonial-card:hover {
+                transform: translateY(-5px);
+                box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+            }
+
+            .testimonial-card .quote-icon {
+                font-size: 2.5rem;
+                color: #007bff;
+                margin-bottom: 15px;
+            }
+
+            .testimonial-card p {
+                font-style: italic;
+                color: #555;
+                margin-bottom: 15px;
+                line-height: 1.6;
+            }
+
+            .testimonial-card .author {
+                font-weight: bold;
+                color: #333;
+            }
+
+        .contact-section {
+            background: linear-gradient(135deg, #007bff, #6610f2); /* Same as hero for consistency */
+            color: white;
+            padding: 60px 0;
+            text-align: center;
+        }
+
+            .contact-section h2 {
+                color: white;
+            }
+
+        .contact-info p {
+            font-size: 1.1rem;
+            margin-bottom: 10px;
+        }
+
+        .contact-info i {
+            margin-right: 10px;
+        }
+
+        @@keyframes iconBounce {
+            0%, 100% {
+                transform: translateY(0);
+            }
+
+            50% {
+                transform: translateY(-10px);
+            }
+        }
+
+        /* Ensure dropdown items have proper spacing and styling */
+        .dropdown-menu .dropdown-item {
+            padding: 10px 20px;
+            transition: background-color 0.2s ease, color 0.2s ease;
+        }
+
+            .dropdown-menu .dropdown-item:hover {
+                background-color: #e9ecef;
+                color: #007bff;
+            }
+
     </style>
 }
 
-<!-- HERO SECTION - WORKING -->
-<div class="hero-section">
-    <h1>Welcome to HS Hospital Bangalore</h1>
-    <p class="lead">Your trusted partner in health and well-being.</p>
-</div>
+<div class="container-fluid">
+    <div class="hero-section">
+        <h1>Welcome to HS Hospital Bangalore</h1>
+        <p class="lead">Your trusted partner in health and well-being. Dedicated to providing compassionate and advanced medical care.</p>
+    </div>
 
-<!-- CAROUSEL - WORKING -->
-<div id="hospitalCarousel" class="carousel slide mt-4" data-bs-ride="carousel">
-    <div class="carousel-inner">
-        <div class="carousel-item active">
-            <img src="https://images.pexels.com/photos/1692693/pexels-photo-1692693.jpeg?cs=srgb&dl=pexels-tomfisk-1692693.jpg&fm=jpg" class="d-block w-100" alt="Facilities">
+    <div id="hospitalCarousel" class="carousel slide mt-5" data-bs-ride="carousel">
+        <div class="carousel-inner">
+            <div class="carousel-item active">
+                <img src="https://images.pexels.com/photos/1692693/pexels-photo-1692693.jpeg?cs=srgb&dl=pexels-tomfisk-1692693.jpg&fm=jpg" class="d-block w-100" alt="State-of-the-art Facilities">
+                <div class="carousel-caption d-none d-md-block">
+                    <h5>Modern Facilities</h5>
+                    <p>Equipped with advanced technology for precise diagnostics and treatment.</p>
+                </div>
+            </div>
+            <div class="carousel-item">
+                <img src="https://plus.unsplash.com/premium_photo-1681966826227-d008a1cfe9c7?q=80&w=2070&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D" class="d-block w-100" alt="Expert Doctors">
+                <div class="carousel-caption d-none d-md-block">
+                    <h5>Experienced Medical Professionals</h5>
+                    <p>Our team of specialists is committed to your health journey.</p>
+                </div>
+            </div>
+            <div class="carousel-item">
+                <img src="https://i.pinimg.com/736x/c6/7c/c1/c67cc114fc289a3eacc442da873053b2.jpg" class="d-block w-100" alt="Compassionate Care">
+                <div class="carousel-caption d-none d-md-block">
+                    <h5>Compassionate and Personalized Care</h5>
+                    <p>We prioritize your comfort and well-being every step of the way.</p>
+                </div>
+            </div>
         </div>
-        <div class="carousel-item">
-            <img src="https://plus.unsplash.com/premium_photo-1681966826227-d008a1cfe9c7?q=80&w=2070&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D" class="d-block w-100" alt="Doctors">
-        </div>
-        <div class="carousel-item">
-            <img src="https://i.pinimg.com/736x/c6/7c/c1/c67cc114fc289a3eacc442da873053b2.jpg" class="d-block w-100" alt="Care">
+        <button class="carousel-control-prev" type="button" data-bs-target="#hospitalCarousel" data-bs-slide="prev">
+            <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+            <span class="visually-hidden">Previous</span>
+        </button>
+        <button class="carousel-control-next" type="button" data-bs-target="#hospitalCarousel" data-bs-slide="next">
+            <span class="carousel-control-next-icon" aria-hidden="true"></span>
+            <span class="visually-hidden">Next</span>
+        </button>
+    </div>
+
+
+
+    <div class="row justify-content-center text-center mt-5 mb-5">
+        <div class="col-md-6">
+            <div class="dropdown">
+                <button class="btn btn-primary login-button dropdown-toggle" type="button" id="loginDropdownMenuButton" data-bs-toggle="dropdown" aria-expanded="false">
+                    Access Patient & Staff Portals
+                </button>
+                <ul class="dropdown-menu" aria-labelledby="loginDropdownMenuButton">
+                    <li>
+                        <a class="dropdown-item" asp-controller="Patient" asp-action="PatientLogin">
+                            <i class="bi bi-person-fill me-2"></i> Patient Login
+                        </a>
+                    </li>
+                    <li>
+                        <a class="dropdown-item" asp-controller="Doctor" asp-action="DoctorLogin">
+                            <i class="bi bi-heart-pulse-fill me-2"></i> Doctor Login
+                        </a>
+                    </li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li>
+                        <a class="dropdown-item" asp-controller="Admin" asp-action="AdminLogin">
+                            <i class="bi bi-person-gear me-2"></i> Admin Login
+                        </a>
+                    </li>
+                </ul>
+            </div>
         </div>
     </div>
-    <button class="carousel-control-prev" type="button" data-bs-target="#hospitalCarousel" data-bs-slide="prev">
-        <span class="carousel-control-prev-icon" aria-hidden="true"></span>
-        <span class="visually-hidden">Previous</span>
-    </button>
-    <button class="carousel-control-next" type="button" data-bs-target="#hospitalCarousel" data-bs-slide="next">
-        <span class="carousel-control-next-icon" aria-hidden="true"></span>
-        <span class="visually-hidden">Next</span>
-    </button>
-</div>
 
-<!-- ADD THIS LOGIN CARDS HTML: -->
-<!-- NEW LOGIN DROPDOWN SECTION -->
-<div class="row justify-content-center text-center mt-4 mb-5">
-    <!-- Added text-center and mb-5 for spacing -->
-    <div class="col-md-6">
-        <!-- Adjust col size as needed -->
-        <div class="dropdown">
-            <button class="btn btn-primary btn-lg dropdown-toggle" type="button" id="loginDropdownMenuButton" data-bs-toggle="dropdown" aria-expanded="false">
-                Access Portal
-            </button>
-            <ul class="dropdown-menu" aria-labelledby="loginDropdownMenuButton">
-                <li>
-                    <a class="dropdown-item" asp-controller="Patient" asp-action="PatientLogin">
-                        <i class="bi bi-person-fill me-2"></i> Patient Login  <!-- Optional: Bootstrap Icon -->
-                    </a>
-                </li>
-                <li>
-                    <a class="dropdown-item" asp-controller="Doctor" asp-action="DoctorLogin">
-                        <i class="bi bi-heart-pulse-fill me-2"></i> Doctor Login <!-- Optional: Bootstrap Icon -->
-                    </a>
-                </li>
-                <li><hr class="dropdown-divider"></li>
-                <li>
-                    <a class="dropdown-item" asp-controller="Admin" asp-action="AdminLogin">
-                        <i class="bi bi-person-gear me-2"></i> Admin Login   <!-- Optional: Bootstrap Icon -->
-                    </a>
-                </li>
-            </ul>
+ 
+
+    <div class="container mt-5 mb-5">
+        <h2 class="section-heading">Our Comprehensive Services</h2>
+        <div class="row g-4">
+            <div class="col-md-4">
+                <div class="service-card">
+                    <i class="bi bi-person-plus-fill"></i>
+                    <h4>Emergency Care</h4>
+                    <p>24/7 immediate medical attention for critical situations.</p>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="service-card">
+                    <i class="bi bi-thermometer-half"></i>
+                    <h4>General Medicine</h4>
+                    <p>Expert diagnosis and treatment for a wide range of common illnesses.</p>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="service-card">
+                    <i class="bi bi-scissors"></i>
+                    <h4>Advanced Surgery</h4>
+                    <p>State-of-the-art surgical procedures with experienced surgeons.</p>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="service-card">
+                    <i class="bi bi-clipboard-pulse"></i>
+                    <h4>Cardiology</h4>
+                    <p>Specialized care for heart health, including diagnostics and interventions.</p>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="service-card">
+                    <i class="bi bi-baby-fill"></i>
+                    <h4>Maternity & Pediatrics</h4>
+                    <p>Comprehensive care for expectant mothers and children of all ages.</p>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="service-card">
+                    <i class="bi bi-x-ray"></i>
+                    <h4>Radiology & Diagnostics</h4>
+                    <p>Accurate imaging services for precise medical insights.</p>
+                </div>
+            </div>
         </div>
     </div>
+
+
+    <div class="testimonial-section">
+        <div class="container">
+            <h2 class="section-heading">What Our Patients Say</h2>
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="testimonial-card">
+                        <i class="bi bi-quote quote-icon"></i>
+                        <p>"HS Hospital provided exceptional care during my recovery. The doctors and nurses were incredibly supportive and professional. Highly recommended!"</p>
+                        <div class="author">- Jane Doe, Patient</div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="testimonial-card">
+                        <i class="bi bi-quote quote-icon"></i>
+                        <p>"From the moment I walked in, I felt comfortable and well-informed. The facilities are top-notch, and the staff's dedication is truly admirable."</p>
+                        <div class="author">- John Smith, Patient</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <div class="contact-section mt-5">
+        <div class="container">
+            <h2 class="section-heading text-white">Contact Us</h2>
+            <div class="row justify-content-center contact-info">
+                <div class="col-md-8">
+                    <p><i class="bi bi-geo-alt-fill"></i> 123 Hospital Road, Koramangala, Bangalore, India</p>
+                    <p><i class="bi bi-telephone-fill"></i> +91 98765 43210</p>
+                    <p><i class="bi bi-envelope-fill"></i> info@hshospitalbangalore.com</p>
+                    <p><i class="bi bi-globe"></i> www.hshospitalbangalore.com</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
 </div>
+
+@section Scripts {
+    <script>
+        // Optional: If you have any specific JS for carousel or other elements, add them here.
+        // For example, to ensure carousel autoplays and pauses on hover:
+        $(document).ready(function() {
+            $('#hospitalCarousel').carousel({
+                interval: 4000, // Changes slide every 4 seconds
+                pause: 'hover' // Pauses on mouse hover
+            });
+        });
+    </script>
+}
