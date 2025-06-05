@@ -1,38 +1,98 @@
-﻿using System.Collections.Generic;
+﻿// File: Services/SystemLogService.cs
+using Microsoft.EntityFrameworkCore;
+using Patient_Appointment_Management_System.Data;    // For PatientAppointmentDbContext
+using Patient_Appointment_Management_System.Models;  // For SystemLog model (and your LogLevel enum)
+using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using System; // For DateTime
+// Note: Microsoft.Extensions.Logging is not explicitly used here, but its LogLevel can be brought in by other ASP.NET Core dependencies.
 
 namespace Patient_Appointment_Management_System.Services
 {
     public class SystemLogService : ISystemLogService
     {
-        // In a real app, this would interact with a logging database or file system
-        private static readonly List<string> _logs = new List<string>
-        {
-            $"{DateTime.Now.AddMinutes(-120)}: System startup initiated.",
-            $"{DateTime.Now.AddMinutes(-65)}: Admin 'Initial Admin' logged in.",
-            $"{DateTime.Now.AddMinutes(-30)}: Patient 'Test Patient' registered.",
-            $"{DateTime.Now.AddMinutes(-5)}: Doctor 'Dr. Test' updated availability."
-        };
+        private readonly PatientAppointmentDbContext _context; // Inject DbContext
 
-        public Task<IEnumerable<string>> GetRecentLogsAsync(int count = 10)
+        // Constructor to inject DbContext
+        public SystemLogService(PatientAppointmentDbContext context)
         {
-            // Simulate fetching recent logs
-            var recentLogs = _logs.OrderByDescending(log => log.Substring(0, log.IndexOf(':'))) // Simple sort by date prefix
-                                  .Take(count)
-                                  .ToList();
-            return Task.FromResult<IEnumerable<string>>(recentLogs);
+            _context = context;
         }
 
-        // Method to add logs (call this from other services/controllers where actions happen)
-        public static void AddLog(string message)
+        // Instance method to log an event using the SystemLog model
+        public async Task LogEventAsync(SystemLog logEntry)
         {
-            _logs.Insert(0, $"{DateTime.Now}: {message}"); // Add to the beginning to keep it somewhat ordered by recent
-            if (_logs.Count > 100) // Cap the log size
+            if (logEntry == null) throw new ArgumentNullException(nameof(logEntry));
+
+            // Ensure timestamp and level are set if not already
+            logEntry.Timestamp = logEntry.Timestamp == DateTime.MinValue ? DateTime.UtcNow : logEntry.Timestamp;
+
+            // --- QUALIFIED ENUM --- (Line 29 was here)
+            logEntry.Level = string.IsNullOrEmpty(logEntry.Level) ?
+                             Patient_Appointment_Management_System.Models.LogLevel.Information.ToString() :
+                             logEntry.Level;
+
+            _context.SystemLogs.Add(logEntry);
+            await _context.SaveChangesAsync();
+        }
+
+        // Alternative LogEventAsync if you prefer specific parameters
+        // public async Task LogEventAsync(string eventType, string message, string source,
+        //                                 Patient_Appointment_Management_System.Models.LogLevel level = Patient_Appointment_Management_System.Models.LogLevel.Information, // QUALIFIED
+        //                                 string userId = null)
+        // {
+        //     var logEntry = new SystemLog
+        //     {
+        //         Timestamp = DateTime.UtcNow,
+        //         Level = level.ToString(), // level is now explicitly your enum
+        //         EventType = eventType,
+        //         Message = message,
+        //         Source = source,
+        //         UserId = userId
+        //     };
+        //     _context.SystemLogs.Add(logEntry);
+        //     await _context.SaveChangesAsync();
+        // }
+
+
+        public async Task<List<SystemLog>> GetRecentLogsAsync(int count = 10)
+        {
+            if (count <= 0) count = 10;
+
+            return await _context.SystemLogs
+                                 .OrderByDescending(log => log.Timestamp)
+                                 .Take(count)
+                                 .ToListAsync();
+        }
+
+        public async Task<(List<SystemLog> Logs, int TotalCount)> GetPaginatedLogsAsync(
+            int pageNumber, int pageSize, string filterLevel = null, DateTime? startDate = null, DateTime? endDate = null)
+        {
+            var query = _context.SystemLogs.AsQueryable();
+
+            if (!string.IsNullOrEmpty(filterLevel))
             {
-                _logs.RemoveAt(_logs.Count - 1);
+                // Assuming SystemLog.Level is stored as a string matching the enum member names
+                query = query.Where(log => log.Level == filterLevel);
             }
+            if (startDate.HasValue)
+            {
+                query = query.Where(log => log.Timestamp >= startDate.Value);
+            }
+            if (endDate.HasValue)
+            {
+                var endOfDay = endDate.Value.Date.AddDays(1).AddTicks(-1);
+                query = query.Where(log => log.Timestamp <= endOfDay);
+            }
+
+            int totalCount = await query.CountAsync();
+
+            var logs = await query.OrderByDescending(log => log.Timestamp)
+                                  .Skip((pageNumber - 1) * pageSize)
+                                  .Take(pageSize)
+                                  .ToListAsync();
+            return (logs, totalCount);
         }
     }
 }
