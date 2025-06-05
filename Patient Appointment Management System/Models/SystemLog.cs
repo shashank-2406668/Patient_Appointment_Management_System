@@ -4,7 +4,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace Patient_Appointment_Management_System.Models
 {
-    public enum LogLevel // You might have this enum defined elsewhere or directly use strings
+    public enum LogLevel
     {
         Information,
         Warning,
@@ -21,19 +21,21 @@ namespace Patient_Appointment_Management_System.Models
 
         [Required]
         [StringLength(50)]
-        public string Level { get; set; } // Or use LogLevel enum: public LogLevel Level { get; set; }
+        public string Level { get; set; }
 
         [StringLength(100)]
-        public string Source { get; set; } // e.g., ControllerName, ServiceName
+        public string? Source { get; set; } // Made Source nullable too, often useful
 
         [Required]
         public string Message { get; set; }
 
-        public string EventType { get; set; } // Optional: e.g., "LoginSuccess", "AppointmentCreated"
+        [StringLength(100)] // Added StringLength for EventType
+        public string? EventType { get; set; } // Made EventType nullable
 
-        public string UserId { get; set; } // Optional: For tracking user associated with the log
+        // --- THIS IS THE KEY CHANGE ---
+        [StringLength(450)] // Max length for typical user IDs (e.g., GUIDs from ASP.NET Identity)
+        public string? UserId { get; set; } // Made UserId nullable (string? or just string if not using C# 8+ NRTs)
 
-        // Optional: For displaying nicely in views if you just do @log
         public override string ToString()
         {
             return $"{Timestamp:yyyy-MM-dd HH:mm:ss} [{Level}] ({Source ?? "System"}): {Message}";
