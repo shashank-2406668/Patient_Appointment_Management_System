@@ -1,7 +1,7 @@
 ﻿@model Patient_Appointment_Management_System.ViewModels.DoctorDashboardViewModel
 @{
     ViewData["Title"] = "Doctor Dashboard";
-    Layout = null; // Assuming this page doesn't use a shared layout, or it's set elsewhere
+    Layout = null;
 }
 
 <!doctype html>
@@ -60,10 +60,27 @@
                 border-bottom: 0;
             }
 
-        .day-selection { /* Kept if used elsewhere */
-            display: flex;
-            flex-wrap: wrap;
-            gap: 15px;
+        .notification-item {
+            padding: 10px;
+            border-bottom: 1px solid #e9ecef;
+            transition: background-color 0.2s;
+        }
+
+            .notification-item:hover {
+                background-color: #f8f9fa;
+            }
+
+            .notification-item.unread {
+                background-color: #e8f4fd;
+                border-left: 3px solid #007bff;
+            }
+
+        .notification-badge {
+            font-size: 0.75rem .notification-badge
+
+        {
+            font-size: 0.75rem;
+            padding: 0.25rem 0.5rem;
         }
     </style>
 </head>
@@ -134,7 +151,7 @@
                         {
                             <p>No appointments scheduled for today.</p>
                         }
-                         <a asp-controller="Doctor" asp-action="DoctorViewAppointment" class="btn btn-success btn-sm mt-3"><i class="bi bi-eye me-1"></i>View All Appointments</a> 
+                        <a asp-controller="Doctor" asp-action="DoctorViewAppointment" class="btn btn-success btn-sm mt-3"><i class="bi bi-eye me-1"></i>View All Appointments</a>
                     </div>
                 </div>
             </div>
@@ -151,28 +168,99 @@
             </div>
         </div>
 
+        <!-- Enhanced Notifications Section -->
         <div class="dashboard-card mt-4">
-            <div class="dashboard-card-header">
-                <h5><i class="bi bi-bell me-2"></i>Notifications</h5>
+            <div class="dashboard-card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="bi bi-bell me-2"></i>Notifications
+                    @if (Model.UnreadNotificationCount > 0)
+                    {
+                        <span class="badge bg-danger notification-badge">@Model.UnreadNotificationCount new</span>
+                    }
+                </h5>
+                @if (Model.Notifications.Any(n => !n.IsRead))
+                {
+                    <button class="btn btn-sm btn-outline-primary" onclick="markAllAsRead()">Mark all as read</button>
+                }
             </div>
-            <div class="dashboard-card-body">
+            <div class="dashboard-card-body p-0">
                 @if (Model.Notifications != null && Model.Notifications.Any())
                 {
-                    <ul class="list-group list-group-flush">
+                    <div class="notifications-list">
                         @foreach (var notification in Model.Notifications)
                         {
-                            <li class="list-group-item">@notification</li>
+                            <div class="notification-item @(!notification.IsRead ? "unread" : "")" data-notification-id="@notification.NotificationId">
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <div class="flex-grow-1">
+                                        <div class="d-flex align-items-center mb-1">
+                                            <i class="bi @notification.GetNotificationIcon() me-2"></i>
+                                            <strong>@notification.NotificationType</strong>
+                                            <small class="text-muted ms-auto">@notification.TimeAgo</small>
+                                        </div>
+                                        <p class="mb-1">@notification.Message</p>
+                                        @if (!string.IsNullOrEmpty(notification.Url))
+                                        {
+                                            <a href="@notification.Url" class="btn btn-sm btn-link p-0">View Details</a>
+                                        }
+                                    </div>
+                                    @if (!notification.IsRead)
+                                    {
+                                        <button class="btn btn-sm btn-outline-secondary ms-2" onclick="markAsRead(@notification.NotificationId)">
+                                            <i class="bi bi-check"></i>
+                                        </button>
+                                    }
+                                </div>
+                            </div>
                         }
-                    </ul>
+                    </div>
                 }
                 else
                 {
-                    <p>No new notifications.</p>
+                    <div class="p-3 text-center text-muted">
+                        <i class="bi bi-bell-slash fs-3"></i>
+                        <p class="mb-0">No notifications</p>
+                    </div>
                 }
             </div>
         </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function markAsRead(notificationId) {
+            fetch('@Url.Action("MarkNotificationAsRead", "Doctor")', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]').value
+                },
+                body: 'notificationId=' + notificationId
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    location.reload();
+                }
+            })
+            .catch(error => console.error('Error:', error));
+        }
+
+        function markAllAsRead() {
+            fetch('@Url.Action("MarkAllNotificationsAsRead", "Doctor")', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]').value
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    location.reload();
+                }
+            })
+            .catch(error => console.error('Error:', error));
+        }
+    </script>
 </body>
 </html>

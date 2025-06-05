@@ -171,13 +171,35 @@ namespace Patient_Appointment_Management_System.Controllers
                 })
                 .ToListAsync();
 
+            var notifications = await _context.Notifications
+                .Where(n => n.PatientId == patientId.Value)
+                .OrderByDescending(n => n.SentDate)
+             .Take(10)
+            .Select(n => new NotificationViewModel
+            {
+               NotificationId = n.NotificationId,
+                Message = n.Message,
+                NotificationType = n.NotificationType,
+               SentDate = n.SentDate,
+               IsRead = n.IsRead,
+                Url = n.Url
+            })
+            .ToListAsync();
+
+           var unreadCount = await _context.Notifications
+                .CountAsync(n => n.PatientId == patientId.Value && !n.IsRead);
+
+            // Then update your viewModel creation to include notifications:
             var viewModel = new PatientDashboardViewModel
             {
                 PatientName = patient.Name,
                 UpcomingAppointments = upcomingAppointments,
-                AppointmentHistory = appointmentHistory
+                AppointmentHistory = appointmentHistory,
+                Notifications = notifications,
+                UnreadNotificationCount = unreadCount
             };
 
+    
             if (TempData["GlobalSuccessMessage"] != null) ViewBag.SuccessMessage = TempData["GlobalSuccessMessage"];
             if (TempData["SuccessMessage"] != null)
             {
@@ -290,6 +312,8 @@ namespace Patient_Appointment_Management_System.Controllers
             }
         }
 
+
+
         // === BOOK APPOINTMENT ACTIONS (REFINED) ===
         [HttpGet]
         public async Task<IActionResult> BookAppointment()
@@ -304,6 +328,9 @@ namespace Patient_Appointment_Management_System.Controllers
                                     .OrderBy(d => d.Name)
                                     .Select(d => new { d.DoctorId, NameAndSpec = $"Dr. {d.Name} ({d.Specialization})" })
                                     .ToListAsync();
+
+
+
             var viewModel = new BookAppointmentViewModel
             {
                 DoctorsList = doctors.Select(d => new SelectListItem { Value = d.DoctorId.ToString(), Text = d.NameAndSpec }).ToList(),
@@ -476,6 +503,14 @@ namespace Patient_Appointment_Management_System.Controllers
 
                 await _context.SaveChangesAsync();
 
+                await CreateNotificationAsync(
+                  patientId: null,
+                  doctorId: chosenSlot.DoctorId,
+                  message: $"New appointment booked by {HttpContext.Session.GetString("PatientName")} on {newAppointmentStartTime:MMMM dd, yyyy 'at' hh:mm tt} - Issue: {model.Issue ?? "Not specified"}",
+                  notificationType: "Booking",
+                   url: $"/Doctor/DoctorViewAppointment"
+                );
+
                 _logger.LogInformation($"Appointment (ID: {newAppointment.AppointmentId}) booked: PatientID {patientIdFromSession.Value}, SlotID {chosenSlot.AvailabilitySlotId}, DateTime {newAppointmentStartTime}");
                 TempData["SuccessMessage"] = $"Appointment with Dr. {chosenSlot.Doctor.Name} on {newAppointmentStartTime:MMMM dd, yyyy 'at' hh:mm tt} has been successfully requested.";
                 return RedirectToAction("PatientDashboard");
@@ -638,6 +673,15 @@ namespace Patient_Appointment_Management_System.Controllers
                 _context.Appointments.Update(appointment);
                 await _context.SaveChangesAsync();
 
+                // Add notification for doctor
+                await CreateNotificationAsync(
+                    patientId: null,
+                    doctorId: appointment.DoctorId,
+                    message: $"Appointment cancelled by {HttpContext.Session.GetString("PatientName")} for {appointment.AppointmentDateTime:MMMM dd, yyyy 'at' hh:mm tt}",
+                    notificationType: "Cancellation",
+                    url: $"/Doctor/DoctorViewAppointment"
+                );
+
                 _logger.LogInformation($"Appointment {appointmentId} cancelled successfully by patient {patientId}");
                 TempData["SuccessMessage"] = $"Your appointment with Dr. {appointment.Doctor.Name} on {appointment.AppointmentDateTime:MMMM dd, yyyy 'at' hh:mm tt} has been cancelled successfully.";
             }
@@ -649,7 +693,12 @@ namespace Patient_Appointment_Management_System.Controllers
             }
 
             return RedirectToAction("PatientDashboard");
+
+
         }
+
+
+
 
         // === RESCHEDULE APPOINTMENT ===
         [HttpGet]
@@ -848,6 +897,15 @@ namespace Patient_Appointment_Management_System.Controllers
 
                 await _context.SaveChangesAsync();
 
+                // Add notification for doctor about reschedule
+                await CreateNotificationAsync(
+                    patientId: null,
+                    doctorId: appointment.DoctorId,
+                    message: $"Appointment rescheduled by {HttpContext.Session.GetString("PatientName")} from {model.CurrentAppointmentDateTime:MMMM dd, yyyy 'at' hh:mm tt} to {newAppointmentStartTime:MMMM dd, yyyy 'at' hh:mm tt}",
+                    notificationType: "Reschedule",
+                    url: $"/Doctor/DoctorViewAppointment"
+                );
+
                 _logger.LogInformation($"Appointment {appointment.AppointmentId} rescheduled successfully by patient {patientId}");
                 TempData["SuccessMessage"] = $"Your appointment has been rescheduled to {newAppointmentStartTime:MMMM dd, yyyy 'at' hh:mm tt} with Dr. {newSlot.Doctor.Name}.";
 
@@ -918,7 +976,44 @@ namespace Patient_Appointment_Management_System.Controllers
                 model.AvailableTimeSlots = new List<SelectListItem>();
             }
         }
+        // Add this helper method to PatientController
+        private async Task CreateNotificationAsync(int? patientId, int? doctorId, string message, string notificationType, string? url = null)
+        {
+            var notification = new Notification
+            {
+                PatientId = patientId,
+                DoctorId = doctorId,
+                Message = message,
+                NotificationType = notificationType,
+                SentDate = DateTime.Now,
+                IsRead = false,
+                Url = url
+            };
 
+            _context.Notifications.Add(notification);
+            await _context.SaveChangesAsync();
+        }
+
+        // Add method to mark notifications as read
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> MarkNotificationAsRead(int notificationId)
+        {
+            if (!IsPatientLoggedIn()) return Json(new { success = false });
+
+            var patientId = HttpContext.Session.GetInt32("PatientId");
+            var notification = await _context.Notifications
+                .FirstOrDefaultAsync(n => n.NotificationId == notificationId && n.PatientId == patientId);
+
+            if (notification != null)
+            {
+                notification.IsRead = true;
+                await _context.SaveChangesAsync();
+                return Json(new { success = true });
+            }
+
+            return Json(new { success = false });
+        }
 
 
 

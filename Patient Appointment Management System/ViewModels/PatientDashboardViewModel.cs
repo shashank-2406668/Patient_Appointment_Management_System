@@ -9,9 +9,13 @@ namespace Patient_Appointment_Management_System.ViewModels
         public string PatientName { get; set; } = string.Empty;
         public List<AppointmentDetailViewModel> UpcomingAppointments { get; set; } = new List<AppointmentDetailViewModel>();
         public List<AppointmentDetailViewModel> AppointmentHistory { get; set; } = new List<AppointmentDetailViewModel>();
+
+        // Add these new properties
+        public List<NotificationViewModel> Notifications { get; set; } = new List<NotificationViewModel>();
+        public int UnreadNotificationCount { get; set; }
     }
 
-    public class AppointmentDetailViewModel // Reusable for displaying appointment info
+    public class AppointmentDetailViewModel
     {
         public int AppointmentId { get; set; }
         public DateTime AppointmentDateTime { get; set; }
@@ -19,6 +23,5 @@ namespace Patient_Appointment_Management_System.ViewModels
         public string DoctorSpecialization { get; set; } = string.Empty;
         public string Status { get; set; } = string.Empty;
         public string? Issue { get; set; }
-        // You can add more fields here if needed, e.g., ClinicAddress
     }
 }

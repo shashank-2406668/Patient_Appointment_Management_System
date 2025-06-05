@@ -1,7 +1,7 @@
 ﻿@* File Path: Views/Home/DoctorViewAppointment.cshtml *@
 @model IEnumerable<Patient_Appointment_Management_System.ViewModels.AppointmentSummaryViewModel>
 @{
-    Layout = null; // This page is self-contained for now. Consider a shared Doctor layout later.
+    Layout = null;
     ViewData["Title"] = "Doctor Appointments";
 }
 
@@ -66,6 +66,22 @@
                 background-color: #545b62;
                 border-color: #4e555b;
             }
+
+        .status-scheduled,
+        .status-confirmed {
+            color: #28a745;
+            font-weight: 500;
+        }
+
+        .status-cancelled {
+            color: #dc3545;
+            font-weight: 500;
+        }
+
+        .status-completed {
+            color: #6c757d;
+            font-weight: 500;
+        }
     </style>
 </head>
 <body>
@@ -88,6 +104,22 @@
     </nav>
 
     <div class="container appointments-container">
+        @if (TempData["AvailabilitySuccessMessage"] != null)
+        {
+            <div class="alert alert-success alert-dismissible fade show" role="alert">
+                <i class="bi bi-check-circle me-2"></i>@TempData["AvailabilitySuccessMessage"]
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        }
+
+        @if (TempData["AvailabilityErrorMessage"] != null)
+        {
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                <i class="bi bi-exclamation-triangle me-2"></i>@TempData["AvailabilityErrorMessage"]
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        }
+
         <div class="d-flex justify-content-between align-items-center">
             <h2 class="appointments-heading mb-0"><i class="bi bi-calendar-week me-2"></i>All Appointments</h2>
             <a asp-controller="Doctor" asp-action="Dashboard" class="btn btn-secondary d-md-none">
@@ -99,13 +131,14 @@
         @if (Model != null && Model.Any())
         {
             <div class="table-responsive">
-                <table class="table table-hover table-striped">
+                <table class="table table-hover">
                     <thead class="table-light">
                         <tr>
                             <th>Patient Name</th>
                             <th>Date</th>
                             <th>Time</th>
                             <th>Status/Reason</th>
+                            <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -115,7 +148,39 @@
                                 <td>@Html.DisplayFor(modelItem => appointment.PatientName)</td>
                                 <td>@appointment.AppointmentDateTime.ToString("yyyy-MM-dd")</td>
                                 <td>@appointment.AppointmentDateTime.ToString("hh:mm tt")</td>
-                                <td>@Html.DisplayFor(modelItem => appointment.Status)</td>
+                                <td>
+                                    <span class="status-@appointment.Status.ToLower().Replace(" ", "-")">
+                                        @Html.DisplayFor(modelItem => appointment.Status)
+                                    </span>
+                                    @if (!string.IsNullOrEmpty(appointment.Issue))
+                                    {
+                                        <br />
+                                        <small class="text-muted">@appointment.Issue</small>
+                                    }
+                                </td>
+                                <td>
+                                    @if (appointment.AppointmentDateTime > DateTime.Now &&
+                                   appointment.Status != "Cancelled" &&
+                                   appointment.Status != "Completed")
+                                    {
+                                        <form asp-action="CancelAppointment" asp-controller="Doctor" method="post"
+                                              style="display: inline;">
+                                            <input type="hidden" name="appointmentId" value="@appointment.Id" />
+                                            <button type="submit" class="btn btn-danger btn-sm"
+                                                    onclick="return confirm('Are you sure you want to cancel this appointment with @appointment.PatientName on @appointment.AppointmentDateTime.ToString("MMM dd, yyyy at hh:mm tt")?');">
+                                                <i class="bi bi-x-circle"></i> Cancel
+                                            </button>
+                                        </form>
+                                    }
+                                    else if (appointment.Status == "Cancelled")
+                                    {
+                                        <span class="text-muted small">Cancelled</span>
+                                    }
+                                    else if (appointment.AppointmentDateTime <= DateTime.Now)
+                                    {
+                                        <span class="text-muted small">Past</span>
+                                    }
+                                </td>
                             </tr>
                         }
                     </tbody>
