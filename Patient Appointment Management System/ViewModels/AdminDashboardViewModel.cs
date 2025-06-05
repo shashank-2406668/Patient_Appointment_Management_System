@@ -1,4 +1,5 @@
-﻿using Patient_Appointment_Management_System.Models; // For Patient, Doctor if showing details
+﻿// File: ViewModels/AdminDashboardViewModel.cs
+using Patient_Appointment_Management_System.Models; // For SystemLog
 using System.Collections.Generic;
 
 namespace Patient_Appointment_Management_System.ViewModels
@@ -7,38 +8,28 @@ namespace Patient_Appointment_Management_System.ViewModels
     {
         public int TotalPatients { get; set; }
         public int TotalDoctors { get; set; }
-        public IEnumerable<PatientRowViewModel> RecentPatients { get; set; } // Or full Patient model
-        public IEnumerable<DoctorRowViewModel> RecentDoctors { get; set; }   // Or full Doctor model
-        public IEnumerable<string> RecentSystemLogs { get; set; }
-        public IEnumerable<ConflictViewModel> ActiveConflicts { get; set; }
+
+        // These ViewModels (PatientRowViewModel, DoctorRowViewModel) are now defined in their own files
+        // within the Patient_Appointment_Management_System.ViewModels namespace.
+        public IEnumerable<PatientRowViewModel> RecentPatients { get; set; }
+        public IEnumerable<DoctorRowViewModel> RecentDoctors { get; set; }
+
+        public List<SystemLog> RecentSystemLogs { get; set; }
+        public List<SchedulingConflictViewModel> ActiveConflicts { get; set; }
 
         public AdminDashboardViewModel()
         {
             RecentPatients = new List<PatientRowViewModel>();
             RecentDoctors = new List<DoctorRowViewModel>();
-            RecentSystemLogs = new List<string>();
-            ActiveConflicts = new List<ConflictViewModel>();
+            RecentSystemLogs = new List<SystemLog>();
+            ActiveConflicts = new List<SchedulingConflictViewModel>();
         }
     }
 
-    // Simplified ViewModels for table rows to avoid sending full models if not needed
-    public class PatientRowViewModel
-    {
-        public int PatientId { get; set; }
-        public string Name { get; set; }
-        public string Email { get; set; }
-        public string Phone { get; set; }
-        // Add Login/Logout times if you implement activity tracking
-        public string LastActivity { get; set; } = "N/A"; // Placeholder
-    }
-
-    public class DoctorRowViewModel
-    {
-        public int DoctorId { get; set; }
-        public string Name { get; set; }
-        public string Email { get; set; }
-        public string Phone { get; set; }
-        public string Specialization { get; set; }
-        public string LastActivity { get; set; } = "N/A"; // Placeholder
-    }
+    // REMOVE THE DEFINITIONS OF PatientRowViewModel and DoctorRowViewModel FROM HERE
+    // AS THEY ARE NOW IN THEIR OWN FILES.
+    //
+    // public class PatientRowViewModel { ... } // DELETE THIS BLOCK
+    //
+    // public class DoctorRowViewModel { ... }  // DELETE THIS BLOCK
 }

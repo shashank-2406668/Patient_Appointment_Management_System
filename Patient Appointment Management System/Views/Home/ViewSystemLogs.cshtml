@@ -1,0 +1,202 @@
+﻿@model Patient_Appointment_Management_System.ViewModels.ViewSystemLogsViewModel
+@{
+    ViewData["Title"] = "System Event Logs";
+    Layout = "~/Views/Shared/_AdminLayout.cshtml";
+    int maxPagesToShow = 5; // For pagination display
+}
+
+<div class="container-fluid">
+    <h1 class="text-primary mb-4">@ViewData["Title"] (@Model.TotalLogs total)</h1>
+
+    <!-- Filter Form -->
+    <div class="card shadow mb-4">
+        <div class="card-header py-3">
+            <h6 class="m-0 font-weight-bold text-primary">Filter Logs</h6>
+        </div>
+        <div class="card-body">
+            <form asp-action="ViewSystemLogs" asp-controller="Admin" method="get" class="row g-3 align-items-end">
+                <div class="col-md-3">
+                    <label asp-for="FilterLevel" class="form-label">Log Level</label>
+                    <select asp-for="FilterLevel" asp-items="Model.AvailableLogLevels" class="form-select"></select>
+                </div>
+                <div class="col-md-3">
+                    <label asp-for="FilterStartDate" class="form-label">Start Date</label>
+                    <input asp-for="FilterStartDate" type="date" class="form-control" />
+                </div>
+                <div class="col-md-3">
+                    <label asp-for="FilterEndDate" class="form-label">End Date</label>
+                    <input asp-for="FilterEndDate" type="date" class="form-control" />
+                </div>
+                <div class="col-md-3">
+                    <button type="submit" class="btn btn-primary w-100"><i class="bi bi-filter me-2"></i>Filter</button>
+                    @if (!string.IsNullOrEmpty(Model.FilterLevel) || Model.FilterStartDate.HasValue || Model.FilterEndDate.HasValue)
+                    {
+                        <a asp-action="ViewSystemLogs" asp-controller="Admin" class="btn btn-outline-secondary w-100 mt-2"><i class="bi bi-x-circle me-2"></i>Clear Filters</a>
+                    }
+                </div>
+            </form>
+        </div>
+    </div>
+
+
+    @if (Model.SystemLogs != null && Model.SystemLogs.Any())
+    {
+        <div class="card shadow mb-4">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-primary">Log Entries</h6>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-bordered table-striped table-hover" id="systemLogsTable" width="100%" cellspacing="0">
+                        <thead>
+                            <tr>
+                                <th>Timestamp</th>
+                                <th>Level</th>
+                                <th>Source</th>
+                                <th>Event Type</th>
+                                <th>Message</th>
+                                <th>User ID</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var log in Model.SystemLogs)
+                            {
+                                <tr>
+                                    <td>@log.Timestamp.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                                    <td>
+                                        @if (log.Level == Patient_Appointment_Management_System.Models.LogLevel.Error.ToString() || log.Level == Patient_Appointment_Management_System.Models.LogLevel.Critical.ToString())
+                                        {
+                                            <span class="badge bg-danger">@log.Level</span>
+                                        }
+                                        else if (log.Level == Patient_Appointment_Management_System.Models.LogLevel.Warning.ToString())
+                                        {
+                                            <span class="badge bg-warning text-dark">@log.Level</span>
+                                        }
+                                        else if (log.Level == Patient_Appointment_Management_System.Models.LogLevel.Information.ToString())
+                                        {
+                                            <span class="badge bg-info">@log.Level</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-secondary">@log.Level</span>
+                                        }
+                                    </td>
+                                    <td>@log.Source</td>
+                                    <td>@log.EventType</td>
+                                    <td>@log.Message</td>
+                                    <td>@log.UserId</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Pagination Controls -->
+        @if (Model.TotalPages > 1)
+        {
+            <nav aria-label="System Logs Pagination">
+                <ul class="pagination justify-content-center">
+                    @if (Model.CurrentPage > 1)
+                    {
+                        <li class="page-item">
+                            <a class="page-link" asp-action="ViewSystemLogs"
+                               asp-route-page="1"
+                               asp-route-filterLevel="@Model.FilterLevel"
+                               asp-route-startDate="@Model.FilterStartDate?.ToString("yyyy-MM-dd")"
+                               asp-route-endDate="@Model.FilterEndDate?.ToString("yyyy-MM-dd")"
+                               aria-label="First">
+                                <span aria-hidden="true">&laquo;&laquo;</span>
+                            </a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" asp-action="ViewSystemLogs"
+                               asp-route-page="@(Model.CurrentPage - 1)"
+                               asp-route-filterLevel="@Model.FilterLevel"
+                               asp-route-startDate="@Model.FilterStartDate?.ToString("yyyy-MM-dd")"
+                               asp-route-endDate="@Model.FilterEndDate?.ToString("yyyy-MM-dd")"
+                               aria-label="Previous">
+                                <span aria-hidden="true">&laquo;</span>
+                            </a>
+                        </li>
+                    }
+                    else
+                    {
+                        <li class="page-item disabled"><a class="page-link" href="#" tabindex="-1" aria-disabled="true">&laquo;&laquo;</a></li>
+                        <li class="page-item disabled"><a class="page-link" href="#" tabindex="-1" aria-disabled="true">&laquo;</a></li>
+                    }
+
+                    @* Calculate start and end page numbers for pagination display *@
+                    @{
+                        int startPage = Math.Max(1, Model.CurrentPage - (maxPagesToShow / 2));
+                        int endPage = Math.Min(Model.TotalPages, startPage + maxPagesToShow - 1);
+                        if (endPage - startPage + 1 < maxPagesToShow && startPage > 1)
+                        {
+                            startPage = Math.Max(1, endPage - maxPagesToShow + 1);
+                        }
+                    }
+
+                    @for (int i = startPage; i <= endPage; i++)
+                    {
+                        <li class="page-item @(i == Model.CurrentPage ? "active" : "")">
+                            <a class="page-link" asp-action="ViewSystemLogs"
+                               asp-route-page="@i"
+                               asp-route-filterLevel="@Model.FilterLevel"
+                               asp-route-startDate="@Model.FilterStartDate?.ToString("yyyy-MM-dd")"
+                               asp-route-endDate="@Model.FilterEndDate?.ToString("yyyy-MM-dd")">@i</a>
+                        </li>
+                    }
+
+                    @if (Model.CurrentPage < Model.TotalPages)
+                    {
+                        <li class="page-item">
+                            <a class="page-link" asp-action="ViewSystemLogs"
+                               asp-route-page="@(Model.CurrentPage + 1)"
+                               asp-route-filterLevel="@Model.FilterLevel"
+                               asp-route-startDate="@Model.FilterStartDate?.ToString("yyyy-MM-dd")"
+                               asp-route-endDate="@Model.FilterEndDate?.ToString("yyyy-MM-dd")"
+                               aria-label="Next">
+                                <span aria-hidden="true">&raquo;</span>
+                            </a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" asp-action="ViewSystemLogs"
+                               asp-route-page="@Model.TotalPages"
+                               asp-route-filterLevel="@Model.FilterLevel"
+                               asp-route-startDate="@Model.FilterStartDate?.ToString("yyyy-MM-dd")"
+                               asp-route-endDate="@Model.FilterEndDate?.ToString("yyyy-MM-dd")"
+                               aria-label="Last">
+                                <span aria-hidden="true">&raquo;&raquo;</span>
+                            </a>
+                        </li>
+                    }
+                    else
+                    {
+                        <li class="page-item disabled"><a class="page-link" href="#" tabindex="-1" aria-disabled="true">&raquo;</a></li>
+                        <li class="page-item disabled"><a class="page-link" href="#" tabindex="-1" aria-disabled="true">&raquo;&raquo;</a></li>
+                    }
+                </ul>
+            </nav>
+            <p class="text-center text-muted small">Showing page @Model.CurrentPage of @Model.TotalPages</p>
+        }
+    }
+    else
+    {
+        <div class="alert alert-info" role="alert">
+            No system logs found matching your criteria.
+        </div>
+    }
+</div>
+
+@section Styles {
+    <style>
+        .table th {
+            white-space: nowrap;
+        }
+
+        .table td {
+            word-break: break-word; /* For long messages */
+        }
+    </style>
+}

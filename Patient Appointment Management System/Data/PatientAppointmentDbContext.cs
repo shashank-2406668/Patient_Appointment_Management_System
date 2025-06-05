@@ -18,6 +18,9 @@ namespace Patient_Appointment_Management_System.Data
         public DbSet<AvailabilitySlot> AvailabilitySlots { get; set; }
         public DbSet<Notification> Notifications { get; set; }
 
+        public DbSet<SystemLog> SystemLogs { get; set; }
+
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -150,6 +153,8 @@ namespace Patient_Appointment_Management_System.Data
                       .IsRequired(false)
                       .OnDelete(DeleteBehavior.Cascade);
             });
+
+
 
             // Consider adding unique constraints or indexes where appropriate, e.g.,
             // modelBuilder.Entity<AvailabilitySlot>()

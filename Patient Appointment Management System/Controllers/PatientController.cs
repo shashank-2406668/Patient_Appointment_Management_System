@@ -685,5 +685,351 @@ namespace Patient_Appointment_Management_System.Controllers
             }
             return View("~/Views/Home/PatientForgotPassword.cshtml", model);
         }
+        // Add these methods to your existing PatientController class:
+
+        // === CANCEL APPOINTMENT ===
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> CancelAppointment(int appointmentId)
+        {
+            if (!IsPatientLoggedIn())
+            {
+                TempData["ErrorMessage"] = "Please log in to cancel an appointment.";
+                return RedirectToAction("PatientLogin");
+            }
+
+            var patientId = HttpContext.Session.GetInt32("PatientId");
+            if (patientId == null)
+            {
+                TempData["ErrorMessage"] = "Session error. Please log in again.";
+                return RedirectToAction("PatientLogin");
+            }
+
+            try
+            {
+                var appointment = await _context.Appointments
+                    .Include(a => a.BookedAvailabilitySlot)
+                    .Include(a => a.Doctor)
+                    .FirstOrDefaultAsync(a => a.AppointmentId == appointmentId && a.PatientId == patientId);
+
+                if (appointment == null)
+                {
+                    _logger.LogWarning($"Cancel attempt failed: Appointment {appointmentId} not found for patient {patientId}");
+                    TempData["ErrorMessage"] = "Appointment not found or you don't have permission to cancel it.";
+                    return RedirectToAction("PatientDashboard");
+                }
+
+                // Check if appointment can be cancelled
+                if (appointment.Status == "Completed" || appointment.Status == "Cancelled")
+                {
+                    TempData["ErrorMessage"] = $"This appointment is already {appointment.Status.ToLower()} and cannot be cancelled.";
+                    return RedirectToAction("PatientDashboard");
+                }
+
+                // Check if appointment is in the past
+                if (appointment.AppointmentDateTime < DateTime.Now)
+                {
+                    TempData["ErrorMessage"] = "Past appointments cannot be cancelled.";
+                    return RedirectToAction("PatientDashboard");
+                }
+
+                // Update appointment status
+                appointment.Status = "Cancelled";
+
+                // Free up the availability slot if it exists
+                if (appointment.BookedAvailabilitySlot != null)
+                {
+                    appointment.BookedAvailabilitySlot.IsBooked = false;
+                    _context.AvailabilitySlots.Update(appointment.BookedAvailabilitySlot);
+                }
+
+                _context.Appointments.Update(appointment);
+                await _context.SaveChangesAsync();
+
+                _logger.LogInformation($"Appointment {appointmentId} cancelled successfully by patient {patientId}");
+                TempData["SuccessMessage"] = $"Your appointment with Dr. {appointment.Doctor.Name} on {appointment.AppointmentDateTime:MMMM dd, yyyy 'at' hh:mm tt} has been cancelled successfully.";
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"Error cancelling appointment {appointmentId} for patient {patientId}");
+
+                TempData["ErrorMessage"] = "An error occurred while cancelling your appointment. Please try again.";
+            }
+
+            return RedirectToAction("PatientDashboard");
+        }
+
+        // === RESCHEDULE APPOINTMENT ===
+        [HttpGet]
+        public async Task<IActionResult> RescheduleAppointment(int appointmentId)
+        {
+            if (!IsPatientLoggedIn())
+            {
+                TempData["ErrorMessage"] = "Please log in to reschedule an appointment.";
+                return RedirectToAction("PatientLogin");
+            }
+
+            var patientId = HttpContext.Session.GetInt32("PatientId");
+            if (patientId == null)
+            {
+                TempData["ErrorMessage"] = "Session error. Please log in again.";
+                return RedirectToAction("PatientLogin");
+            }
+
+            var appointment = await _context.Appointments
+                .Include(a => a.Doctor)
+                .FirstOrDefaultAsync(a => a.AppointmentId == appointmentId && a.PatientId == patientId);
+
+            if (appointment == null)
+            {
+                _logger.LogWarning($"Reschedule attempt failed: Appointment {appointmentId} not found for patient {patientId}");
+                TempData["ErrorMessage"] = "Appointment not found or you don't have permission to reschedule it.";
+                return RedirectToAction("PatientDashboard");
+            }
+
+            // Check if appointment can be rescheduled
+            if (appointment.Status == "Completed" || appointment.Status == "Cancelled")
+            {
+                TempData["ErrorMessage"] = $"This appointment is {appointment.Status.ToLower()} and cannot be rescheduled.";
+                return RedirectToAction("PatientDashboard");
+            }
+
+            // Check if appointment is in the past
+            if (appointment.AppointmentDateTime < DateTime.Now)
+            {
+                TempData["ErrorMessage"] = "Past appointments cannot be rescheduled.";
+                return RedirectToAction("PatientDashboard");
+            }
+
+            // Create view model for rescheduling
+            var viewModel = new RescheduleAppointmentViewModel
+            {
+                AppointmentId = appointment.AppointmentId,
+                CurrentDoctorId = appointment.DoctorId,
+                CurrentDoctorName = $"Dr. {appointment.Doctor.Name} ({appointment.Doctor.Specialization})",
+                CurrentAppointmentDateTime = appointment.AppointmentDateTime,
+                Issue = appointment.Issue,
+                DoctorId = appointment.DoctorId, // Pre-select current doctor
+                AppointmentDate = DateTime.Today.AddDays(1), // Default to tomorrow
+                AvailableTimeSlots = new List<SelectListItem>()
+            };
+
+            // Get all doctors for dropdown
+            var doctors = await _context.Doctors
+                .OrderBy(d => d.Name)
+                .Select(d => new { d.DoctorId, NameAndSpec = $"Dr. {d.Name} ({d.Specialization})" })
+                .ToListAsync();
+
+            viewModel.DoctorsList = doctors.Select(d => new SelectListItem
+            {
+                Value = d.DoctorId.ToString(),
+                Text = d.NameAndSpec,
+                Selected = d.DoctorId == appointment.DoctorId
+            }).ToList();
+
+            return View("~/Views/Home/RescheduleAppointment.cshtml", viewModel);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> RescheduleAppointment(RescheduleAppointmentViewModel model)
+        {
+            if (!IsPatientLoggedIn())
+            {
+                TempData["ErrorMessage"] = "Please log in to reschedule an appointment.";
+                return RedirectToAction("PatientLogin");
+            }
+
+            var patientId = HttpContext.Session.GetInt32("PatientId");
+            if (patientId == null)
+            {
+                TempData["ErrorMessage"] = "Session error. Please log in again.";
+                return RedirectToAction("PatientLogin");
+            }
+
+            if (model.SelectedAvailabilitySlotId <= 0)
+            {
+                ModelState.AddModelError(nameof(model.SelectedAvailabilitySlotId), "Please select an available time slot.");
+            }
+
+            if (!ModelState.IsValid)
+            {
+                await RepopulateRescheduleViewModelForPostErrorAsync(model);
+                return View("~/Views/Home/RescheduleAppointment.cshtml", model);
+            }
+
+            try
+            {
+                // Get the original appointment
+                var appointment = await _context.Appointments
+                    .Include(a => a.BookedAvailabilitySlot)
+                    .Include(a => a.Doctor)
+                    .FirstOrDefaultAsync(a => a.AppointmentId == model.AppointmentId && a.PatientId == patientId);
+
+                if (appointment == null)
+                {
+                    TempData["ErrorMessage"] = "Appointment not found or you don't have permission to reschedule it.";
+                    return RedirectToAction("PatientDashboard");
+                }
+
+                // Check if appointment can still be rescheduled
+                if (appointment.Status == "Completed" || appointment.Status == "Cancelled")
+                {
+                    TempData["ErrorMessage"] = $"This appointment is {appointment.Status.ToLower()} and cannot be rescheduled.";
+                    return RedirectToAction("PatientDashboard");
+                }
+
+                // Get the new slot
+                var newSlot = await _context.AvailabilitySlots
+                    .Include(s => s.Doctor)
+                    .FirstOrDefaultAsync(s => s.AvailabilitySlotId == model.SelectedAvailabilitySlotId &&
+                                              s.DoctorId == model.DoctorId &&
+                                              s.Date.Date == model.AppointmentDate.Date &&
+                                              !s.IsBooked);
+
+                if (newSlot == null)
+                {
+                    TempData["BookingErrorMessage"] = "The selected time slot is no longer available. Please choose another slot.";
+                    await RepopulateRescheduleViewModelForPostErrorAsync(model);
+                    return View("~/Views/Home/RescheduleAppointment.cshtml", model);
+                }
+
+                // Check if new slot is in the future
+                if (newSlot.Date.Date == DateTime.Today && newSlot.StartTime <= DateTime.Now.TimeOfDay)
+                {
+                    TempData["BookingErrorMessage"] = "The selected time slot has already passed. Please select a future time.";
+                    await RepopulateRescheduleViewModelForPostErrorAsync(model);
+                    return View("~/Views/Home/RescheduleAppointment.cshtml", model);
+                }
+
+                DateTime newAppointmentStartTime = newSlot.Date.Date.Add(newSlot.StartTime);
+                DateTime newAppointmentEndTime = newSlot.Date.Date.Add(newSlot.EndTime);
+
+                // Check for conflicts with other appointments (excluding the current one)
+                var patientAppointments = await _context.Appointments
+                    .Include(a => a.BookedAvailabilitySlot)
+                    .Where(a => a.PatientId == patientId &&
+                                a.AppointmentId != model.AppointmentId &&
+                                a.Status != "Cancelled" &&
+                                a.Status != "Completed")
+                    .ToListAsync();
+
+                bool patientHasConflict = patientAppointments.Any(a =>
+                {
+                    DateTime existingEndTime;
+                    if (a.BookedAvailabilitySlot != null)
+                    {
+                        existingEndTime = a.BookedAvailabilitySlot.Date.Date.Add(a.BookedAvailabilitySlot.EndTime);
+                    }
+                    else
+                    {
+                        existingEndTime = a.AppointmentDateTime.AddMinutes(30);
+                    }
+
+                    return a.AppointmentDateTime < newAppointmentEndTime && existingEndTime > newAppointmentStartTime;
+                });
+
+                if (patientHasConflict)
+                {
+                    TempData["BookingErrorMessage"] = "You already have an overlapping appointment scheduled around this time.";
+                    await RepopulateRescheduleViewModelForPostErrorAsync(model);
+                    return View("~/Views/Home/RescheduleAppointment.cshtml", model);
+                }
+
+                // Free up the old slot if it exists
+                if (appointment.BookedAvailabilitySlot != null)
+                {
+                    appointment.BookedAvailabilitySlot.IsBooked = false;
+                    _context.AvailabilitySlots.Update(appointment.BookedAvailabilitySlot);
+                }
+
+                // Update the appointment
+                appointment.DoctorId = model.DoctorId;
+                appointment.AppointmentDateTime = newAppointmentStartTime;
+                appointment.BookedAvailabilitySlotId = newSlot.AvailabilitySlotId;
+                appointment.Issue = model.Issue;
+
+                // Mark new slot as booked
+                newSlot.IsBooked = true;
+                _context.AvailabilitySlots.Update(newSlot);
+                _context.Appointments.Update(appointment);
+
+                await _context.SaveChangesAsync();
+
+                _logger.LogInformation($"Appointment {appointment.AppointmentId} rescheduled successfully by patient {patientId}");
+                TempData["SuccessMessage"] = $"Your appointment has been rescheduled to {newAppointmentStartTime:MMMM dd, yyyy 'at' hh:mm tt} with Dr. {newSlot.Doctor.Name}.";
+
+                return RedirectToAction("PatientDashboard");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"Error rescheduling appointment {model.AppointmentId} for patient {patientId}");
+                TempData["BookingErrorMessage"] = "An error occurred while rescheduling your appointment. Please try again.";
+                await RepopulateRescheduleViewModelForPostErrorAsync(model);
+                return View("~/Views/Home/RescheduleAppointment.cshtml", model);
+            }
+        }
+
+        private async Task RepopulateRescheduleViewModelForPostErrorAsync(RescheduleAppointmentViewModel model)
+        {
+            // Get the original appointment info
+            var appointment = await _context.Appointments
+                .Include(a => a.Doctor)
+                .FirstOrDefaultAsync(a => a.AppointmentId == model.AppointmentId);
+
+            if (appointment != null)
+            {
+                model.CurrentDoctorId = appointment.DoctorId;
+                model.CurrentDoctorName = $"Dr. {appointment.Doctor.Name} ({appointment.Doctor.Specialization})";
+                model.CurrentAppointmentDateTime = appointment.AppointmentDateTime;
+            }
+
+            // Repopulate doctors list
+            var doctors = await _context.Doctors
+                .OrderBy(d => d.Name)
+                .Select(d => new { d.DoctorId, NameAndSpec = $"Dr. {d.Name} ({d.Specialization})" })
+                .ToListAsync();
+
+            model.DoctorsList = doctors.Select(d => new SelectListItem
+            {
+                Value = d.DoctorId.ToString(),
+                Text = d.NameAndSpec
+            }).ToList();
+
+            // Repopulate time slots if doctor and date are valid
+            if (model.DoctorId > 0 && model.AppointmentDate != default(DateTime) && model.AppointmentDate >= DateTime.Today)
+            {
+                try
+                {
+                    var slots = await _context.AvailabilitySlots
+                        .Where(s => s.DoctorId == model.DoctorId &&
+                                      s.Date.Date == model.AppointmentDate.Date &&
+                                      !s.IsBooked &&
+                                      (s.Date.Date > DateTime.Today || (s.Date.Date == DateTime.Today && s.StartTime > DateTime.Now.TimeOfDay)))
+                        .OrderBy(s => s.StartTime)
+                        .ToListAsync();
+
+                    model.AvailableTimeSlots = slots.Select(s => new SelectListItem
+                    {
+                        Value = s.AvailabilitySlotId.ToString(),
+                        Text = $"{DateTime.Today.Add(s.StartTime):hh:mm tt} - {DateTime.Today.Add(s.EndTime):hh:mm tt}"
+                    }).ToList();
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error repopulating available slots during reschedule POST error handling.");
+                    model.AvailableTimeSlots = new List<SelectListItem>();
+                }
+            }
+            else
+            {
+                model.AvailableTimeSlots = new List<SelectListItem>();
+            }
+        }
+
+
+
+
+
     }
 }
