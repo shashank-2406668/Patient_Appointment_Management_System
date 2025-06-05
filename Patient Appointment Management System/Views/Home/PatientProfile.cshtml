@@ -1,7 +1,9 @@
 ﻿@model Patient_Appointment_Management_System.ViewModels.PatientProfileViewModel
 @{
-    Layout = null; // Assuming no master layout for this page
+    Layout = null;
     ViewData["Title"] = "Patient Profile";
+    // Prepare an empty ChangePasswordViewModel for the second form
+    var changePasswordModel = new Patient_Appointment_Management_System.ViewModels.ChangePasswordViewModel();
 }
 
 <!doctype html>
@@ -18,16 +20,16 @@
             font-family: Arial, sans-serif;
         }
 
-        .profile-container {
+        .profile-container, .password-container {
             background-color: #ffffff;
             padding: 30px;
             border-radius: 0.5rem;
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
             margin-top: 20px;
-            margin-bottom: 40px; /* Added margin for footer */
+            margin-bottom: 20px;
         }
 
-            .profile-container h2 {
+            .profile-container h2, .password-container h3 {
                 margin-bottom: 20px;
                 color: #007bff;
             }
@@ -37,7 +39,7 @@
             color: #555;
         }
 
-        .form-control:disabled {
+        .form-control:disabled, .form-control[readonly] {
             background-color: #e9ecef;
             cursor: not-allowed;
         }
@@ -77,93 +79,178 @@
         .input-validation-error {
             border-color: #dc3545;
         }
+
+        hr.dashed {
+            border-top: 1px dashed #ccc;
+            margin-top: 30px;
+            margin-bottom: 30px;
+        }
     </style>
 </head>
 <body>
-    <div class="container mt-5">
+    <div class="container mt-4 mb-4">
         <div class="row justify-content-center">
-            <div class="col-md-8 col-lg-7 profile-container">
-                @* Adjusted width for better fit *@
-                <h2><i class="bi bi-person-vcard me-2"></i>Patient Profile</h2>
-                <hr class="mb-4">
+            <div class="col-md-8 col-lg-7">
+                <!-- Patient Profile Details Section -->
+                <div class="profile-container">
+                    <h2><i class="bi bi-person-vcard me-2"></i>Patient Profile</h2>
+                    <hr class="mb-4">
 
-                @if (TempData["ProfileUpdateMessage"] != null)
-                {
-                    <div class="alert alert-success alert-dismissible fade show" role="alert">
-                        @TempData["ProfileUpdateMessage"]
-                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                    </div>
-                }
+                    @if (TempData["ProfileUpdateMessage"] != null)
+                    {
+                        <div class="alert alert-success alert-dismissible fade show" role="alert">
+                            @TempData["ProfileUpdateMessage"]
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        </div>
+                    }
+                    @if (TempData["ProfileUpdateError"] != null)
+                    {
+                        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                            @TempData["ProfileUpdateError"]
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        </div>
+                    }
 
-                @* Form posts to /Patient/PatientProfile *@
-                <form asp-controller="Patient" asp-action="PatientProfile" method="post">
-                    @Html.AntiForgeryToken() @* For CSRF protection *@
-                    <div asp-validation-summary="ModelOnly" class="alert alert-danger"></div>
+                    <form asp-controller="Patient" asp-action="PatientProfile" method="post" id="patientProfileForm">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" asp-for="Id" />
 
+                        <div asp-validation-summary="ModelOnly" class="alert alert-danger" data-formtarget="profile"></div>
 
-                    <div class="mb-3">
-                        <label asp-for="Name" class="form-label"></label>
-                        <input asp-for="Name" class="form-control" disabled /> @* Start disabled *@
-                        <span asp-validation-for="Name" class="field-validation-error"></span>
-                    </div>
-                    <div class="mb-3">
-                        <label asp-for="Email" class="form-label"></label>
-                        <input asp-for="Email" type="email" class="form-control" disabled />
-                        <span asp-validation-for="Email" class="field-validation-error"></span>
-                    </div>
-                    <div class="mb-3">
-                        <label asp-for="Phone" class="form-label"></label>
-                        <input asp-for="Phone" type="tel" class="form-control" disabled />
-                        <span asp-validation-for="Phone" class="field-validation-error"></span>
-                    </div>
-                    <div class="mb-3">
-                        <label asp-for="Dob" class="form-label"></label>
-                        <input asp-for="Dob" type="date" class="form-control"
-                               asp-format="{0:yyyy-MM-dd}" disabled /> @* Ensure correct date format for input type=date *@
-                        <span asp-validation-for="Dob" class="field-validation-error"></span>
-                    </div>
-                    <div class="mb-3">
-                        <label asp-for="Address" class="form-label"></label>
-                        <textarea asp-for="Address" class="form-control" rows="3" disabled></textarea>
-                        <span asp-validation-for="Address" class="field-validation-error"></span>
-                    </div>
+                        <div class="mb-3">
+                            <label asp-for="Id" class="form-label">Patient ID</label>
+                            <input asp-for="Id" class="form-control" readonly /> @* Display Patient ID as readonly *@
+                        </div>
+                        <div class="mb-3">
+                            <label asp-for="Name" class="form-label"></label>
+                            <input asp-for="Name" class="form-control" disabled />
+                            <span asp-validation-for="Name" class="field-validation-error"></span>
+                        </div>
+                        <div class="mb-3">
+                            <label asp-for="Email" class="form-label"></label>
+                            <input asp-for="Email" type="email" class="form-control" disabled />
+                            <span asp-validation-for="Email" class="field-validation-error"></span>
+                        </div>
+                        <div class="mb-3">
+                            <label asp-for="Phone" class="form-label"></label>
+                            <input asp-for="Phone" type="tel" class="form-control" disabled />
+                            <span asp-validation-for="Phone" class="field-validation-error"></span>
+                        </div>
+                        <div class="mb-3">
+                            <label asp-for="Dob" class="form-label"></label>
+                            <input asp-for="Dob" type="date" class="form-control" asp-format="{0:yyyy-MM-dd}" disabled />
+                            <span asp-validation-for="Dob" class="field-validation-error"></span>
+                        </div>
+                        <div class="mb-3">
+                            <label asp-for="Address" class="form-label"></label>
+                            <textarea asp-for="Address" class="form-control" rows="3" disabled></textarea>
+                            <span asp-validation-for="Address" class="field-validation-error"></span>
+                        </div>
 
-                    <div class="button-group">
-                        <button type="submit" class="btn btn-primary" id="saveProfileBtn" style="display: none;"><i class="bi bi-save me-1"></i>Save Profile</button>
-                        <button type="button" class="btn btn-secondary" id="editProfileBtn"><i class="bi bi-pencil me-1"></i>Edit Profile</button>
-                        <a asp-controller="Patient" asp-action="PatientDashboard" class="btn btn-outline-secondary"><i class="bi bi-arrow-left me-1"></i>Back to Dashboard</a>
-                    </div>
-                </form>
+                        <div class="button-group">
+                            <button type="submit" class="btn btn-primary" id="saveProfileBtn" style="display: none;"><i class="bi bi-save me-1"></i>Save Profile</button>
+                            <button type="button" class="btn btn-secondary" id="editProfileBtn"><i class="bi bi-pencil me-1"></i>Edit Profile</button>
+                            <a asp-controller="Patient" asp-action="PatientDashboard" class="btn btn-outline-secondary"><i class="bi bi-arrow-left me-1"></i>Back</a>
+                        </div>
+                    </form>
+                </div>
+
+                <hr class="dashed"> @* Visual separator *@
+
+                <!-- Change Password Section -->
+                <div class="password-container">
+                    <h3><i class="bi bi-shield-lock me-2"></i>Change Password</h3>
+                    <hr class="mb-4">
+
+                    @if (TempData["PasswordChangeMessage"] != null)
+                    {
+                        <div class="alert alert-success alert-dismissible fade show" role="alert">
+                            @TempData["PasswordChangeMessage"]
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        </div>
+                    }
+                    @if (TempData["PasswordChangeError"] != null)
+                    {
+                        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                            @TempData["PasswordChangeError"]
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        </div>
+                    }
+                    @*
+                        This section uses the @{ changePasswordModel = ... } defined at the top.
+                        If validation fails in the ChangePassword POST action, the controller
+                        should repopulate this view with the model containing errors.
+                        For simplicity in GET, we initialize an empty one. If returning from POST error,
+                        ViewBag or a more complex main ViewModel could carry the errored ChangePasswordViewModel.
+                        Let's assume the controller passes back 'changePasswordModel' if there's an error.
+                    *@
+                    <form asp-controller="Patient" asp-action="ChangePassword" method="post" id="changePasswordForm">
+                        @Html.AntiForgeryToken()
+                        @{
+                            // This 'changePasswordValidationModel' is the key
+                            var changePasswordValidationModel = ViewData["ChangePasswordViewModel"] as Patient_Appointment_Management_System.ViewModels.ChangePasswordViewModel ?? changePasswordModel;
+                        }
+                        <div asp-validation-summary="ModelOnly" class="alert alert-danger" data-formtarget="password"></div>
+
+                        <div class="mb-3">
+                            <label asp-for="@changePasswordValidationModel.CurrentPassword" class="form-label"></label>
+                            <input asp-for="@changePasswordValidationModel.CurrentPassword" type="password" class="form-control" />
+                            <span asp-validation-for="@changePasswordValidationModel.CurrentPassword" class="field-validation-error"></span>
+                        </div>
+                        <div class="mb-3">
+                            <label asp-for="@changePasswordValidationModel.NewPassword" class="form-label"></label>
+                            <input asp-for="@changePasswordValidationModel.NewPassword" type="password" class="form-control" />
+                            <span asp-validation-for="@changePasswordValidationModel.NewPassword" class="field-validation-error"></span>
+                        </div>
+                        <div class="mb-3">
+                            <label asp-for="@changePasswordValidationModel.ConfirmNewPassword" class="form-label"></label>
+                            <input asp-for="@changePasswordValidationModel.ConfirmNewPassword" type="password" class="form-control" />
+                            <span asp-validation-for="@changePasswordValidationModel.ConfirmNewPassword" class="field-validation-error"></span>
+                        </div>
+                        <div class="mt-3">
+                            <button type="submit" class="btn btn-primary w-100"><i class="bi bi-key me-1"></i>Update Password</button>
+                        </div>
+                    </form>
+                  
+                </div>
             </div>
         </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
-    @* Include jQuery Validate and Unobtrusive for client-side validation when form is enabled *@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-validate/1.19.5/jquery.validate.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-validation-unobtrusive/3.2.12/jquery.validate.unobtrusive.min.js"></script>
 
     <script>
         $(document).ready(function () {
-            // Initial state from server model, no need for localStorage for display
-            // The form elements are populated by asp-for and disabled by default.
-
             $("#editProfileBtn").click(function () {
-                // Enable form fields for editing
-                $("#profileForm .form-control").prop("disabled", false);
+                $("#patientProfileForm .form-control")
+                    .not("#Id") // Patient ID should remain readonly
+                    .not("#Dob") // DOB should remain disabled
+                    .prop("disabled", false);
                 $("#editProfileBtn").hide();
                 $("#saveProfileBtn").show();
-                $("#Name").focus(); // Focus on the first editable field (ensure ID matches asp-for generated ID)
+                $("#Name").focus();
             });
 
-            // The "Save Profile" button is now a submit button for the form.
-            // Client-side validation will be handled by jQuery Unobtrusive Validation
-            // when fields are enabled and form is submitted.
-            // The localStorage saving logic from your original script is removed,
-            // as data will be posted to the server.
-
-            // The "Back to Dashboard" button is now an <a> tag with asp-controller/action.
+            // Check if there are validation errors for the password form and scroll to it
+            if ($('#changePasswordForm .field-validation-error').length > 0 || $('#changePasswordForm div[asp-validation-summary="ModelOnly"]:not(:empty)').length > 0) {
+                var passwordForm = document.getElementById('changePasswordForm');
+                if (passwordForm) {
+                    passwordForm.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            }
+             // Check if there are validation errors for the profile form and scroll to it
+            if ($('#patientProfileForm .field-validation-error').length > 0 || $('#patientProfileForm div[asp-validation-summary="ModelOnly"]:not(:empty)').length > 0) {
+                var profileForm = document.getElementById('patientProfileForm');
+                if (profileForm) {
+                    // Only scroll if password form didn't have errors, to avoid conflicting scrolls
+                    if (!($('#changePasswordForm .field-validation-error').length > 0 || $('#changePasswordForm div[asp-validation-summary="ModelOnly"]:not(:empty)').length > 0)) {
+                         profileForm.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }
+                }
+            }
         });
     </script>
 </body>

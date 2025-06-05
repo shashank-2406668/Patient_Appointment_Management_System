@@ -1,6 +1,4 @@
-﻿// File: Patient_Appointment_Management_System/Controllers/PatientController.cs
-// (This is largely the same as the last version you provided, which was already good.
-// Key is that BookAppointmentViewModel.SelectedAvailabilitySlotId is an int)
+﻿// FILE: Controllers/PatientController.cs
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Patient_Appointment_Management_System.Data;
@@ -27,6 +25,17 @@ namespace Patient_Appointment_Management_System.Controllers
             _logger = logger;
         }
 
+        private bool IsPatientLoggedIn()
+        {
+            return HttpContext.Session.GetString("PatientLoggedIn") == "true" &&
+                   HttpContext.Session.GetString("UserRole") == "Patient";
+        }
+
+        private int? GetCurrentPatientId()
+        {
+            return HttpContext.Session.GetInt32("PatientId");
+        }
+
         // === PATIENT REGISTRATION ===
         [HttpGet]
         public IActionResult PatientRegister()
@@ -50,7 +59,7 @@ namespace Patient_Appointment_Management_System.Controllers
                 {
                     Name = model.Name,
                     Email = model.Email,
-                    PasswordHash = PasswordHelper.HashPassword(model.Password),
+                    PasswordHash = PasswordHelper.HashPassword(model.Password), // HASHING
                     Phone = (model.CountryCode ?? "") + (model.PhoneNumber ?? ""),
                     Dob = model.Dob,
                     Address = model.Address
@@ -85,7 +94,7 @@ namespace Patient_Appointment_Management_System.Controllers
             {
                 var patientUser = await _context.Patients
                                             .FirstOrDefaultAsync(p => p.Email == model.Email);
-                if (patientUser != null && PasswordHelper.VerifyPassword(model.Password, patientUser.PasswordHash))
+                if (patientUser != null && PasswordHelper.VerifyPassword(model.Password, patientUser.PasswordHash)) // VERIFICATION
                 {
                     HttpContext.Session.SetString("PatientLoggedIn", "true");
                     HttpContext.Session.SetInt32("PatientId", patientUser.PatientId);
@@ -104,13 +113,7 @@ namespace Patient_Appointment_Management_System.Controllers
             return View("~/Views/Home/PatientLogin.cshtml", model);
         }
 
-
-        private bool IsPatientLoggedIn()
-        {
-            return HttpContext.Session.GetString("PatientLoggedIn") == "true" &&
-                   HttpContext.Session.GetString("UserRole") == "Patient";
-        }
-
+        // === PATIENT DASHBOARD ===
         [HttpGet]
         public async Task<IActionResult> PatientDashboard()
         {
@@ -120,7 +123,7 @@ namespace Patient_Appointment_Management_System.Controllers
                 return RedirectToAction("PatientLogin");
             }
 
-            var patientId = HttpContext.Session.GetInt32("PatientId");
+            var patientId = GetCurrentPatientId();
             if (patientId == null)
             {
                 TempData["ErrorMessage"] = "Session error. Please log in again.";
@@ -179,19 +182,31 @@ namespace Patient_Appointment_Management_System.Controllers
             };
 
             if (TempData["GlobalSuccessMessage"] != null) ViewBag.SuccessMessage = TempData["GlobalSuccessMessage"];
-            if (TempData["SuccessMessage"] != null)
-            {
-                ViewBag.SuccessMessage = (ViewBag.SuccessMessage != null ? ViewBag.SuccessMessage + "<br/>" : "") + TempData["SuccessMessage"];
-            }
-            if (TempData["BookingErrorMessage"] != null)
-            {
-                ViewBag.ErrorMessage = TempData["BookingErrorMessage"];
-            }
-            if (TempData["ErrorMessage"] != null)
-            {
-                ViewBag.ErrorMessage = (ViewBag.ErrorMessage != null ? ViewBag.ErrorMessage + "<br/>" : "") + TempData["ErrorMessage"];
-            }
+            if (TempData["SuccessMessage"] != null) ViewBag.SuccessMessage = (ViewBag.SuccessMessage != null ? ViewBag.SuccessMessage + "<br/>" : "") + TempData["SuccessMessage"];
+            if (TempData["BookingErrorMessage"] != null) ViewBag.ErrorMessage = TempData["BookingErrorMessage"];
+            if (TempData["ErrorMessage"] != null) ViewBag.ErrorMessage = (ViewBag.ErrorMessage != null ? ViewBag.ErrorMessage + "<br/>" : "") + TempData["ErrorMessage"];
+
             return View("~/Views/Home/PatientDashboard.cshtml", viewModel);
+        }
+
+
+        // === PATIENT PROFILE (HELPER, GET, POST DETAILS, POST PASSWORD) ===
+        private async Task<PatientProfileViewModel?> GetPatientProfileViewModelAsync(int patientId)
+        {
+            var patient = await _context.Patients.FindAsync(patientId);
+            if (patient == null)
+            {
+                return null;
+            }
+            return new PatientProfileViewModel
+            {
+                Id = patient.PatientId,
+                Name = patient.Name,
+                Email = patient.Email,
+                Phone = patient.Phone,
+                Dob = patient.Dob,
+                Address = patient.Address
+            };
         }
 
         [HttpGet]
@@ -202,47 +217,56 @@ namespace Patient_Appointment_Management_System.Controllers
                 TempData["ErrorMessage"] = "Please log in to view your profile.";
                 return RedirectToAction("PatientLogin");
             }
-            var patientIdFromSession = HttpContext.Session.GetInt32("PatientId");
-            if (patientIdFromSession == null)
+            var patientId = GetCurrentPatientId();
+            if (patientId == null)
             {
                 TempData["ErrorMessage"] = "Session error. Please log in again.";
                 return RedirectToAction("PatientLogin");
             }
-            var patient = await _context.Patients.FindAsync(patientIdFromSession.Value);
-            if (patient == null)
+
+            var patientProfileViewModel = await GetPatientProfileViewModelAsync(patientId.Value);
+            if (patientProfileViewModel == null)
             {
-                _logger.LogError($"Patient profile not found for ID: {patientIdFromSession.Value} during profile view. Clearing session.");
+                _logger.LogError($"Patient profile not found for ID: {patientId.Value} during profile view. Clearing session.");
                 TempData["ErrorMessage"] = "Your profile could not be found. Please log in again.";
                 HttpContext.Session.Clear();
                 return RedirectToAction("PatientLogin");
             }
-            var patientProfileViewModel = new PatientProfileViewModel
+
+            if (ViewData["ChangePasswordViewModel"] == null) // Ensure the ChangePassword part of the view has a model
             {
-                Id = patient.PatientId,
-                Name = patient.Name,
-                Email = patient.Email,
-                Phone = patient.Phone,
-                Dob = patient.Dob,
-                Address = patient.Address
-            };
+                ViewData["ChangePasswordViewModel"] = new ChangePasswordViewModel();
+            }
+
             if (TempData["ProfileUpdateMessage"] != null) ViewBag.SuccessMessage = TempData["ProfileUpdateMessage"];
             if (TempData["ProfileUpdateError"] != null) ViewBag.ErrorMessage = TempData["ProfileUpdateError"];
+            // Password change messages are handled directly in the view by TempData
+
             return View("~/Views/Home/PatientProfile.cshtml", patientProfileViewModel);
         }
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> PatientProfile(PatientProfileViewModel model)
+        public async Task<IActionResult> PatientProfile(PatientProfileViewModel model) // Handles Profile Details Update
         {
-            if (!IsPatientLoggedIn()) return RedirectToAction("PatientLogin");
+            if (!IsPatientLoggedIn())
+            {
+                TempData["ErrorMessage"] = "Please log in to update your profile.";
+                return RedirectToAction("PatientLogin");
+            }
 
-            var patientIdFromSession = HttpContext.Session.GetInt32("PatientId");
+            var patientIdFromSession = GetCurrentPatientId();
             if (patientIdFromSession == null || model.Id != patientIdFromSession.Value)
             {
+                _logger.LogWarning($"Unauthorized profile details update. Session PatientId: {patientIdFromSession}, Model PatientId: {model.Id}");
                 TempData["ErrorMessage"] = "Unauthorized profile update attempt or session mismatch.";
                 HttpContext.Session.Clear();
                 return RedirectToAction("PatientLogin");
             }
+
+            // These fields are read-only or not part of this specific form's editable data
+            ModelState.Remove("Dob");
+            ModelState.Remove("Email"); // Assuming Email is disabled in the form and not meant to be updated here
 
             if (ModelState.IsValid)
             {
@@ -251,25 +275,161 @@ namespace Patient_Appointment_Management_System.Controllers
                 {
                     patientToUpdate.Name = model.Name;
                     patientToUpdate.Phone = model.Phone;
-                    patientToUpdate.Dob = model.Dob;
                     patientToUpdate.Address = model.Address;
+                    // Email and DOB are not updated from this action
 
                     _context.Patients.Update(patientToUpdate);
                     await _context.SaveChangesAsync();
-                    HttpContext.Session.SetString("PatientName", patientToUpdate.Name);
-                    _logger.LogInformation($"Patient profile updated for ID: {patientToUpdate.PatientId}");
-                    TempData["ProfileUpdateMessage"] = "Profile updated successfully!";
+
+                    if (HttpContext.Session.GetString("PatientName") != patientToUpdate.Name)
+                    {
+                        HttpContext.Session.SetString("PatientName", patientToUpdate.Name);
+                    }
+                    _logger.LogInformation($"Patient profile (details) updated for ID: {patientToUpdate.PatientId}");
+                    TempData["ProfileUpdateMessage"] = "Profile details updated successfully!";
                 }
                 else
                 {
-                    _logger.LogError($"Patient profile not found for update. ID: {model.Id}");
+                    _logger.LogError($"Patient profile (details) not found for update. ID: {model.Id}");
                     TempData["ProfileUpdateError"] = "Error: Profile not found for update.";
                 }
-                return RedirectToAction("PatientProfile");
+                return RedirectToAction("PatientProfile"); // PRG pattern
             }
+
+            _logger.LogWarning("PatientProfile (details) POST - ModelState invalid for PatientID: {ModelId}. Errors: {Errors}",
+                model.Id, string.Join("; ", ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage)));
+
+            // If ModelState invalid, re-populate non-editable fields for display consistency
+            var originalPatientData = await GetPatientProfileViewModelAsync(model.Id);
+            if (originalPatientData != null)
+            {
+                model.Dob = originalPatientData.Dob; // Ensure DOB is displayed correctly
+                model.Email = originalPatientData.Email; // Ensure Email is displayed correctly
+            }
+            TempData["ProfileUpdateError"] = "Failed to update profile. Please check the errors.";
+            ViewData["ChangePasswordViewModel"] = new ChangePasswordViewModel(); // Ensure password form part is fresh if profile details fail
             return View("~/Views/Home/PatientProfile.cshtml", model);
         }
 
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        // THIS IS THE KEY CHANGE: Added [Bind(Prefix = "changePasswordValidationModel")]
+        public async Task<IActionResult> ChangePassword([Bind(Prefix = "changePasswordValidationModel")] ChangePasswordViewModel passwordModel)
+        {
+            _logger.LogInformation("ChangePassword POST action initiated.");
+            _logger.LogInformation("Bound passwordModel.CurrentPassword: {CurrentPassword}", passwordModel.CurrentPassword); // Log bound value
+            _logger.LogInformation("Bound passwordModel.NewPassword: {NewPassword}", passwordModel.NewPassword);       // Log bound value
+
+
+            if (!IsPatientLoggedIn())
+            {
+                _logger.LogWarning("ChangePassword: User not logged in.");
+                TempData["ErrorMessage"] = "Please log in to change your password.";
+                return RedirectToAction("PatientLogin");
+            }
+
+            var patientId = GetCurrentPatientId();
+            if (patientId == null)
+            {
+                _logger.LogWarning("ChangePassword: PatientId not found in session.");
+                TempData["ErrorMessage"] = "Session error. Please log in again.";
+                return RedirectToAction("PatientLogin");
+            }
+            _logger.LogInformation("ChangePassword: PatientId from session: {PatientId}", patientId.Value);
+
+            if (!ModelState.IsValid) // Check ModelState after attempting to bind with prefix
+            {
+                _logger.LogWarning("ChangePassword POST - ModelState IS INVALID. PatientID: {PatientIdValue}.", patientId.Value);
+                foreach (var state in ModelState)
+                {
+                    if (state.Value.Errors.Any())
+                    {
+                        _logger.LogWarning("Key: {Key}, Errors: {Errors}", state.Key, string.Join(", ", state.Value.Errors.Select(e => e.ErrorMessage)));
+                    }
+                }
+            }
+            else
+            {
+                _logger.LogInformation("ChangePassword: ModelState is VALID for PatientID: {PatientId}", patientId.Value);
+            }
+
+            if (ModelState.IsValid) // Proceed if model is valid
+            {
+                _logger.LogInformation("ChangePassword: Attempting to find patient with ID: {PatientId}", patientId.Value);
+                var patientToUpdate = await _context.Patients.FindAsync(patientId.Value);
+                if (patientToUpdate == null)
+                {
+                    _logger.LogError($"ChangePassword: Patient not found for ID {patientId.Value}");
+                    TempData["PasswordChangeError"] = "Patient account not found.";
+                    return RedirectToAction("PatientProfile");
+                }
+                _logger.LogInformation("ChangePassword: Patient found. Current PasswordHash (from DB): {PasswordHash}", patientToUpdate.PasswordHash);
+
+                _logger.LogInformation("ChangePassword: Verifying current password entered by user.");
+                if (!PasswordHelper.VerifyPassword(passwordModel.CurrentPassword, patientToUpdate.PasswordHash))
+                {
+                    _logger.LogWarning("ChangePassword: Current password verification FAILED for PatientID: {PatientId}", patientId.Value);
+                    TempData["PasswordChangeError"] = "Incorrect current password.";
+                    ViewData["ChangePasswordViewModel"] = passwordModel; // Pass back the model with its current (incorrect) values
+                    var mainProfileModel = await GetPatientProfileViewModelAsync(patientId.Value);
+                    if (mainProfileModel == null) return RedirectToAction("PatientLogin"); // Should not happen
+                    return View("~/Views/Home/PatientProfile.cshtml", mainProfileModel);
+                }
+                _logger.LogInformation("ChangePassword: Current password verified SUCCESSFULLY.");
+
+                string newHashedPassword = PasswordHelper.HashPassword(passwordModel.NewPassword);
+                _logger.LogInformation("ChangePassword: New password hashed. Old DB Hash: {OldHash}, New Proposed Hash: {NewHash}", patientToUpdate.PasswordHash, newHashedPassword);
+
+                patientToUpdate.PasswordHash = newHashedPassword;
+                _logger.LogInformation("ChangePassword: patientToUpdate.PasswordHash assigned the new hash. EntityState: {EntityState}", _context.Entry(patientToUpdate).State);
+
+                try
+                {
+                    _logger.LogInformation("ChangePassword: Attempting to save changes to database...");
+                    int changes = await _context.SaveChangesAsync();
+                    _logger.LogInformation("ChangePassword: SaveChangesAsync completed. Number of state entries written to the database: {ChangesCount}", changes);
+
+                    if (changes > 0)
+                    {
+                        _logger.LogInformation($"Password changed successfully in database for Patient ID: {patientId.Value}");
+                        TempData["PasswordChangeMessage"] = "Password changed successfully!";
+                    }
+                    else
+                    {
+                        _logger.LogWarning("ChangePassword: SaveChangesAsync reported 0 changes. Password might not have been updated in DB for PatientID: {PatientId}. This can happen if new hash is same as old or no actual change detected by EF.", patientId.Value);
+                        TempData["PasswordChangeError"] = "Failed to update password. No changes were detected to save.";
+                    }
+                }
+                catch (DbUpdateException dbEx)
+                {
+                    _logger.LogError(dbEx, "ChangePassword: DbUpdateException during SaveChangesAsync for PatientID: {PatientId}. InnerEx: {InnerEx}", patientId.Value, dbEx.InnerException?.Message);
+                    TempData["PasswordChangeError"] = "A database error occurred while saving the new password. Please try again.";
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "ChangePassword: General exception during SaveChangesAsync for PatientID: {PatientId}", patientId.Value);
+                    TempData["PasswordChangeError"] = "An unexpected error occurred while saving the new password. Please try again.";
+                }
+
+                return RedirectToAction("PatientProfile"); // PRG pattern
+            }
+
+            // If ModelState is invalid for password change form (after binding attempt)
+            _logger.LogWarning("ChangePassword POST - ModelState was invalid (outer check after binding). PatientID: {PatientIdValue}.", patientId.Value);
+            TempData["PasswordChangeError"] = "Failed to change password. Please check the errors below."; // This is the message you were seeing
+            ViewData["ChangePasswordViewModel"] = passwordModel; // Pass back the model with its validation errors
+
+            var profileViewModel = await GetPatientProfileViewModelAsync(patientId.Value);
+            if (profileViewModel == null)
+            { // Should ideally not happen if user is logged in and patientId is valid
+                HttpContext.Session.Clear();
+                return RedirectToAction("PatientLogin");
+            }
+            return View("~/Views/Home/PatientProfile.cshtml", profileViewModel);
+        }
+
+
+        // === PATIENT LOGOUT ===
         [HttpPost]
         [ValidateAntiForgeryToken]
         public IActionResult PatientLogout()
@@ -280,7 +440,7 @@ namespace Patient_Appointment_Management_System.Controllers
                 HttpContext.Session.Clear();
                 _logger.LogInformation($"Patient {patientName ?? "Unknown"} logged out successfully.");
                 TempData["GlobalSuccessMessage"] = "You have been successfully logged out.";
-                return RedirectToAction("Index", "Home");
+                return RedirectToAction("Index", "Home"); // Or your main landing page
             }
             catch (Exception ex)
             {
@@ -290,7 +450,7 @@ namespace Patient_Appointment_Management_System.Controllers
             }
         }
 
-        // === BOOK APPOINTMENT ACTIONS (REFINED) ===
+        // === BOOK APPOINTMENT ACTIONS ===
         [HttpGet]
         public async Task<IActionResult> BookAppointment()
         {
@@ -299,26 +459,16 @@ namespace Patient_Appointment_Management_System.Controllers
                 TempData["ErrorMessage"] = "Please log in to book an appointment.";
                 return RedirectToAction("PatientLogin");
             }
-
             var doctors = await _context.Doctors
-                                    .OrderBy(d => d.Name)
-                                    .Select(d => new { d.DoctorId, NameAndSpec = $"Dr. {d.Name} ({d.Specialization})" })
-                                    .ToListAsync();
+                .OrderBy(d => d.Name)
+                .Select(d => new { d.DoctorId, NameAndSpec = $"Dr. {d.Name} ({d.Specialization})" })
+                .ToListAsync();
             var viewModel = new BookAppointmentViewModel
             {
                 DoctorsList = doctors.Select(d => new SelectListItem { Value = d.DoctorId.ToString(), Text = d.NameAndSpec }).ToList(),
                 AppointmentDate = DateTime.Today.AddDays(1),
                 AvailableTimeSlots = new List<SelectListItem>()
             };
-            // Handle TempData for repopulating if redirected from POST with error
-            if (TempData.ContainsKey("BookingErrorViewModel"))
-            {
-                // This part is tricky with AJAX loaded slots.
-                // The RepopulateBookAppointmentViewModelForPostErrorAsync should handle setting available slots
-                // if doctor and date were valid in the errored submission.
-                // However, the simplest is often to let the client-side AJAX reload the slots based on persisted DoctorId/Date.
-                // If TempData has error messages, they'll be picked up by ViewBag in the view.
-            }
             return View("~/Views/Home/BookAppointment.cshtml", viewModel);
         }
 
@@ -328,15 +478,13 @@ namespace Patient_Appointment_Management_System.Controllers
             if (!IsPatientLoggedIn())
             {
                 _logger.LogWarning("GetAvailableTimeSlots: Unauthenticated access attempt.");
-                return Json(new List<SelectListItem>());
+                return Json(new { error = "Unauthenticated", slots = new List<SelectListItem>() });
             }
-
             if (doctorId <= 0 || appointmentDate < DateTime.Today)
             {
                 _logger.LogWarning("GetAvailableTimeSlots: Invalid parameters. DoctorId: {DoctorId}, Date: {Date}", doctorId, appointmentDate.ToShortDateString());
-                return Json(new List<SelectListItem>());
+                return Json(new { error = "Invalid parameters", slots = new List<SelectListItem>() });
             }
-
             try
             {
                 var availableSlots = await _context.AvailabilitySlots
@@ -345,25 +493,21 @@ namespace Patient_Appointment_Management_System.Controllers
                                   !s.IsBooked &&
                                   (s.Date.Date > DateTime.Today || (s.Date.Date == DateTime.Today && s.StartTime > DateTime.Now.TimeOfDay)))
                     .OrderBy(s => s.StartTime)
-                    .ToListAsync(); // First get the data from database
-
-                // Then transform it with proper time formatting
+                    .ToListAsync();
                 var formattedSlots = availableSlots.Select(s => new SelectListItem
                 {
                     Value = s.AvailabilitySlotId.ToString(),
                     Text = $"{DateTime.Today.Add(s.StartTime):hh:mm tt} - {DateTime.Today.Add(s.EndTime):hh:mm tt}"
                 }).ToList();
-
                 _logger.LogInformation("Fetched {SlotCount} slots for DoctorId {DoctorId} on {Date}", formattedSlots.Count, doctorId, appointmentDate.ToShortDateString());
                 return Json(formattedSlots);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error fetching available slots for Doctor ID {DoctorId} on Date {AppointmentDate}", doctorId, appointmentDate.ToShortDateString());
-                return Json(new List<SelectListItem>());
+                return Json(new { error = "Server error while fetching slots", slots = new List<SelectListItem>() });
             }
         }
-
 
         [HttpPost]
         [ValidateAntiForgeryToken]
@@ -374,188 +518,151 @@ namespace Patient_Appointment_Management_System.Controllers
                 TempData["ErrorMessage"] = "Please log in to book an appointment.";
                 return RedirectToAction("PatientLogin");
             }
-
-            var patientIdFromSession = HttpContext.Session.GetInt32("PatientId");
-            if (patientIdFromSession == null)
+            var patientId = GetCurrentPatientId();
+            if (patientId == null)
             {
                 TempData["ErrorMessage"] = "Session error. Please log in again.";
                 return RedirectToAction("PatientLogin");
             }
-
             if (model.SelectedAvailabilitySlotId <= 0)
             {
                 ModelState.AddModelError(nameof(model.SelectedAvailabilitySlotId), "Please select an available time slot.");
             }
-
+            if (model.DoctorId <= 0)
+            {
+                ModelState.AddModelError(nameof(model.DoctorId), "Please select a doctor.");
+            }
+            if (model.AppointmentDate < DateTime.Today)
+            {
+                ModelState.AddModelError(nameof(model.AppointmentDate), "Appointment date cannot be in the past.");
+            }
             if (!ModelState.IsValid)
             {
-                _logger.LogWarning("BookAppointment POST - ModelState invalid for PatientID: {PatientId}. Errors: {Errors}",
-                    patientIdFromSession.Value,
-                    string.Join("; ", ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage)));
+                _logger.LogWarning("BookAppointment POST - ModelState invalid for PatientID: {PatientIdValue}. Errors: {Errors}",
+                    patientId.Value, string.Join("; ", ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage)));
                 await RepopulateBookAppointmentViewModelForPostErrorAsync(model);
                 return View("~/Views/Home/BookAppointment.cshtml", model);
             }
-
             var chosenSlot = await _context.AvailabilitySlots
-                                     .Include(s => s.Doctor)
-                                     .FirstOrDefaultAsync(s => s.AvailabilitySlotId == model.SelectedAvailabilitySlotId &&
-                                                               s.DoctorId == model.DoctorId &&
-                                                               s.Date.Date == model.AppointmentDate.Date &&
-                                                               !s.IsBooked);
-
+                .Include(s => s.Doctor)
+                .FirstOrDefaultAsync(s => s.AvailabilitySlotId == model.SelectedAvailabilitySlotId &&
+                                          s.DoctorId == model.DoctorId &&
+                                          s.Date.Date == model.AppointmentDate.Date &&
+                                          !s.IsBooked);
             if (chosenSlot == null)
             {
-                _logger.LogWarning("BookAppointment POST - Chosen slot (ID: {SlotId}) for DoctorID {DoctorId} on {Date} not found or already booked for PatientID {PatientId}.",
-                    model.SelectedAvailabilitySlotId, model.DoctorId, model.AppointmentDate.ToString("yyyy-MM-dd"), patientIdFromSession.Value);
+                _logger.LogWarning("BookAppointment POST - Chosen slot (ID: {SlotId}) not found or already booked for Doctor {DoctorId} on {AppointmentDate}",
+                    model.SelectedAvailabilitySlotId, model.DoctorId, model.AppointmentDate.ToShortDateString());
                 TempData["BookingErrorMessage"] = "The selected time slot is no longer available or is invalid. Please choose another slot.";
                 await RepopulateBookAppointmentViewModelForPostErrorAsync(model);
                 return View("~/Views/Home/BookAppointment.cshtml", model);
             }
-
             if (chosenSlot.Date.Date == DateTime.Today && chosenSlot.StartTime <= DateTime.Now.TimeOfDay)
             {
-                _logger.LogWarning("BookAppointment POST - Chosen slot (ID: {SlotId}) for today has already passed. Current Time: {CurrentTime}, Slot StartTime: {SlotStartTime}",
-                    model.SelectedAvailabilitySlotId, DateTime.Now.TimeOfDay, chosenSlot.StartTime);
+                _logger.LogWarning("BookAppointment POST - Chosen slot (ID: {SlotId}) for today has already passed.", model.SelectedAvailabilitySlotId);
                 TempData["BookingErrorMessage"] = "The selected time slot has already passed for today. Please select a future time.";
                 await RepopulateBookAppointmentViewModelForPostErrorAsync(model);
                 return View("~/Views/Home/BookAppointment.cshtml", model);
             }
-
             DateTime newAppointmentStartTime = chosenSlot.Date.Date.Add(chosenSlot.StartTime);
             DateTime newAppointmentEndTime = chosenSlot.Date.Date.Add(chosenSlot.EndTime);
-
-            // FIXED: Fetch appointments first, then check for conflicts in memory
             var patientAppointments = await _context.Appointments
                 .Include(a => a.BookedAvailabilitySlot)
-                .Where(a => a.PatientId == patientIdFromSession.Value &&
+                .Where(a => a.PatientId == patientId.Value &&
                             a.Status != "Cancelled" &&
                             a.Status != "Completed")
                 .ToListAsync();
-
-            // Now check for conflicts in memory
             bool patientHasConflict = patientAppointments.Any(a =>
             {
-                DateTime existingEndTime;
+                DateTime existingApptStartTime = a.AppointmentDateTime;
+                DateTime existingApptEndTime;
                 if (a.BookedAvailabilitySlot != null)
                 {
-                    existingEndTime = a.BookedAvailabilitySlot.Date.Date.Add(a.BookedAvailabilitySlot.EndTime);
+                    existingApptEndTime = a.BookedAvailabilitySlot.Date.Date.Add(a.BookedAvailabilitySlot.EndTime);
                 }
                 else
                 {
-                    existingEndTime = a.AppointmentDateTime.AddMinutes(30); // Default 30 minutes
+                    existingApptEndTime = existingApptStartTime.AddMinutes(30); // Default duration
                 }
-
-                return a.AppointmentDateTime < newAppointmentEndTime && existingEndTime > newAppointmentStartTime;
+                return existingApptStartTime < newAppointmentEndTime && existingApptEndTime > newAppointmentStartTime;
             });
-
             if (patientHasConflict)
             {
-                _logger.LogWarning("BookAppointment POST - PatientID {PatientId} has a conflicting appointment for SlotID {SlotId}.",
-                    patientIdFromSession.Value, model.SelectedAvailabilitySlotId);
-                TempData["BookingErrorMessage"] = "You already have an overlapping appointment scheduled around this time. Please check your dashboard.";
+                _logger.LogWarning("BookAppointment POST - PatientID {PatientIdValue} has a conflicting appointment for slot {SlotId}", patientId.Value, model.SelectedAvailabilitySlotId);
+                TempData["BookingErrorMessage"] = "You already have an overlapping appointment scheduled around this time.";
                 await RepopulateBookAppointmentViewModelForPostErrorAsync(model);
                 return View("~/Views/Home/BookAppointment.cshtml", model);
             }
-
             try
             {
                 var newAppointment = new Appointment
                 {
-                    PatientId = patientIdFromSession.Value,
+                    PatientId = patientId.Value,
                     DoctorId = model.DoctorId,
                     AppointmentDateTime = newAppointmentStartTime,
                     Status = "Scheduled",
                     Issue = model.Issue,
                     BookedAvailabilitySlotId = chosenSlot.AvailabilitySlotId
                 };
-
                 chosenSlot.IsBooked = true;
-
                 _context.Appointments.Add(newAppointment);
                 _context.AvailabilitySlots.Update(chosenSlot);
-
                 await _context.SaveChangesAsync();
-
-                _logger.LogInformation($"Appointment (ID: {newAppointment.AppointmentId}) booked: PatientID {patientIdFromSession.Value}, SlotID {chosenSlot.AvailabilitySlotId}, DateTime {newAppointmentStartTime}");
+                _logger.LogInformation($"Appointment (ID: {newAppointment.AppointmentId}) booked successfully for Patient {patientId.Value}.");
                 TempData["SuccessMessage"] = $"Appointment with Dr. {chosenSlot.Doctor.Name} on {newAppointmentStartTime:MMMM dd, yyyy 'at' hh:mm tt} has been successfully requested.";
                 return RedirectToAction("PatientDashboard");
             }
             catch (DbUpdateConcurrencyException ex)
             {
-                _logger.LogError(ex, "Concurrency error booking appointment. Slot ID {SlotId} for PatientID {PatientId}.", chosenSlot.AvailabilitySlotId, patientIdFromSession.Value);
+                _logger.LogError(ex, "Concurrency error booking appointment. Slot ID {SlotId}.", chosenSlot.AvailabilitySlotId);
                 TempData["BookingErrorMessage"] = "This time slot was just booked by someone else. Please select a different slot.";
-            }
-            catch (DbUpdateException dbEx)
-            {
-                _logger.LogError(dbEx, "Database error booking appointment. Patient ID {PatientId}, Slot ID {SlotId}", patientIdFromSession.Value, chosenSlot?.AvailabilitySlotId);
-                TempData["BookingErrorMessage"] = "A database error occurred while booking your appointment. Please try again.";
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "General error booking appointment. Patient ID {PatientId}, Slot ID {SlotId}", patientIdFromSession.Value, chosenSlot?.AvailabilitySlotId);
-                TempData["BookingErrorMessage"] = "An unexpected error occurred while booking your appointment. Please try again.";
+                _logger.LogError(ex, "General error booking appointment for slot {SlotId}", chosenSlot?.AvailabilitySlotId);
+                TempData["BookingErrorMessage"] = "An unexpected error occurred. Please try again.";
             }
-
             await RepopulateBookAppointmentViewModelForPostErrorAsync(model);
             return View("~/Views/Home/BookAppointment.cshtml", model);
-        }
-
-        private DateTime GetAppointmentEndDateTime(Appointment appointment)
-        {
-            if (appointment.BookedAvailabilitySlotId.HasValue)
-            {
-                var slot = _context.AvailabilitySlots.AsNoTracking().FirstOrDefault(s => s.AvailabilitySlotId == appointment.BookedAvailabilitySlotId.Value);
-                if (slot != null)
-                {
-                    return slot.Date.Date.Add(slot.EndTime);
-                }
-            }
-            return appointment.AppointmentDateTime.AddMinutes(30);
         }
 
         private async Task RepopulateBookAppointmentViewModelForPostErrorAsync(BookAppointmentViewModel model)
         {
             var doctors = await _context.Doctors
-                                    .OrderBy(d => d.Name)
-                                    .Select(d => new { d.DoctorId, NameAndSpec = $"Dr. {d.Name} ({d.Specialization})" })
-                                    .ToListAsync();
+                .OrderBy(d => d.Name)
+                .Select(d => new { d.DoctorId, NameAndSpec = $"Dr. {d.Name} ({d.Specialization})" })
+                .ToListAsync();
             model.DoctorsList = doctors.Select(d => new SelectListItem { Value = d.DoctorId.ToString(), Text = d.NameAndSpec }).ToList();
 
-            if (model.DoctorId > 0 && model.AppointmentDate != default(DateTime) && model.AppointmentDate >= DateTime.Today)
+            // Repopulate available time slots if doctor and date were valid enough to try fetching
+            if (model.DoctorId > 0 && model.AppointmentDate >= DateTime.Today)
             {
                 try
                 {
-                    _logger.LogInformation("Repopulating slots for DoctorId {DoctorId} on {Date} after POST error.", model.DoctorId, model.AppointmentDate.ToShortDateString());
-
                     var slots = await _context.AvailabilitySlots
-                        .Where(s => s.DoctorId == model.DoctorId &&
-                                      s.Date.Date == model.AppointmentDate.Date &&
-                                      !s.IsBooked &&
-                                      (s.Date.Date > DateTime.Today || (s.Date.Date == DateTime.Today && s.StartTime > DateTime.Now.TimeOfDay)))
-                        .OrderBy(s => s.StartTime)
-                        .ToListAsync();
-
+                       .Where(s => s.DoctorId == model.DoctorId &&
+                                     s.Date.Date == model.AppointmentDate.Date &&
+                                     !s.IsBooked &&
+                                     (s.Date.Date > DateTime.Today || (s.Date.Date == DateTime.Today && s.StartTime > DateTime.Now.TimeOfDay)))
+                       .OrderBy(s => s.StartTime)
+                       .ToListAsync();
                     model.AvailableTimeSlots = slots.Select(s => new SelectListItem
                     {
                         Value = s.AvailabilitySlotId.ToString(),
                         Text = $"{DateTime.Today.Add(s.StartTime):hh:mm tt} - {DateTime.Today.Add(s.EndTime):hh:mm tt}"
                     }).ToList();
-
-                    _logger.LogInformation("Repopulated {SlotCount} slots.", model.AvailableTimeSlots.Count);
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Error repopulating available slots during POST error handling for DoctorId {DoctorId} on {Date}.", model.DoctorId, model.AppointmentDate.ToShortDateString());
-                    model.AvailableTimeSlots = new List<SelectListItem>();
+                    _logger.LogError(ex, "Error repopulating available slots during POST error for BookAppointment. DoctorID: {DoctorId}, Date: {AppointmentDate}", model.DoctorId, model.AppointmentDate);
+                    model.AvailableTimeSlots = new List<SelectListItem>(); // Ensure it's empty on error
                 }
             }
             else
             {
-                _logger.LogInformation("Skipping slot repopulation due to invalid DoctorId or AppointmentDate in model during POST error.");
-                model.AvailableTimeSlots = new List<SelectListItem>();
+                model.AvailableTimeSlots = new List<SelectListItem>(); // Ensure it's empty if initial doctor/date were invalid
             }
         }
-
 
         // === PATIENT FORGOT PASSWORD ===
         [HttpGet]
@@ -572,6 +679,7 @@ namespace Patient_Appointment_Management_System.Controllers
             {
                 var patientExists = await _context.Patients.AnyAsync(p => p.Email == model.Email);
                 _logger.LogInformation($"Forgot password attempt for email: {model.Email}. Patient exists: {patientExists}");
+                // In a real application, generate a reset token, save it, and email a link.
                 TempData["ForgotPasswordMessage"] = "If an account with that email address exists, a password reset link has been sent. Please check your inbox (and spam folder).";
                 return RedirectToAction("PatientLogin");
             }

@@ -1,4 +1,4 @@
-﻿// ViewModels/PatientProfileViewModel.cs
+﻿// FILE: ViewModels/PatientProfileViewModel.cs
 using System;
 using System.ComponentModel.DataAnnotations;
 
@@ -6,32 +6,30 @@ namespace Patient_Appointment_Management_System.ViewModels
 {
     public class PatientProfileViewModel
     {
-        // --- THIS IS THE CRITICAL ADDITION ---
         public int Id { get; set; }
-        // -------------------------------------
 
         [Required(ErrorMessage = "Full Name is required.")]
-        [StringLength(100)]
+        [StringLength(100, ErrorMessage = "Full Name cannot exceed 100 characters.")]
         [Display(Name = "Full Name")]
-        public string Name { get; set; } = string.Empty; // Initialize
+        public string Name { get; set; } = string.Empty;
 
         [Required(ErrorMessage = "Email Address is required.")]
-        [EmailAddress(ErrorMessage = "Invalid Email Address.")]
-        [StringLength(100)]
+        [EmailAddress(ErrorMessage = "Invalid Email Address format.")]
+        [StringLength(100, ErrorMessage = "Email Address cannot exceed 100 characters.")]
         [Display(Name = "Email Address")]
-        public string Email { get; set; } = string.Empty; // Initialize
+        public string Email { get; set; } = string.Empty;
 
-        [StringLength(20)] // To accommodate country code + number
-        [Phone(ErrorMessage = "Invalid Phone Number format.")] // This [Phone] attribute is fine
+        [StringLength(20, ErrorMessage = "Phone Number cannot exceed 20 characters.")]
+        [Phone(ErrorMessage = "Invalid Phone Number format.")]
         [Display(Name = "Phone Number")]
-        public string Phone { get; set; } = string.Empty; // Initialize, even if form makes it optional, ViewModel can default
+        public string? Phone { get; set; }
 
-        [Required(ErrorMessage = "Date of Birth is required.")] // If editable and required
         [DataType(DataType.Date)]
-        public DateTime? Dob { get; set; } // <<<< MAKE THIS NON-NULLABLE if it's directly mapped
+        [Display(Name = "Date of Birth")]
+        public DateTime? Dob { get; set; }
 
-        [StringLength(500)]
+        [StringLength(500, ErrorMessage = "Address cannot exceed 500 characters.")]
         [Display(Name = "Address")]
-        public string Address { get; set; } = string.Empty; // Initialize
+        public string? Address { get; set; }
     }
 }
