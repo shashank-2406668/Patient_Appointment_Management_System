@@ -1,0 +1,238 @@
+﻿@model Patient_Appointment_Management_System.ViewModels.RescheduleAppointmentViewModel
+@{
+    Layout = null;
+    ViewData["Title"] = "Reschedule Appointment";
+}
+
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>@ViewData["Title"]</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background: linear-gradient(to bottom, #e3f2fd, #bbdefb);
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .navbar {
+            background-color: #007bff;
+        }
+
+            .navbar a.navbar-brand, .navbar a.nav-link {
+                color: white !important;
+            }
+
+                .navbar a.nav-link:hover {
+                    color: #d1ecf1 !important;
+                }
+
+        .container {
+            flex: 1 0 auto;
+            padding-bottom: 60px;
+        }
+
+        .card {
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .card-header {
+            background-color: #007bff;
+            color: white;
+        }
+
+        .btn-primary {
+            background-color: #007bff;
+            border: none;
+        }
+
+            .btn-primary:hover {
+                background-color: #0056b3;
+            }
+
+        footer {
+            background-color: #007bff;
+            color: white;
+            text-align: center;
+            padding: 10px 0;
+            width: 100%;
+            margin-top: auto;
+        }
+
+        .current-appointment-info {
+            background-color: #f8f9fa;
+            border-left: 4px solid #007bff;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation Bar -->
+    <nav class="navbar navbar-expand-lg p-3">
+        <div class="container-fluid">
+            <a class="navbar-brand" asp-controller="Patient" asp-action="PatientDashboard">Patient Portal</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNavPatient">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNavPatient">
+                <ul class="navbar-nav me-auto">
+                </ul>
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <a class="nav-link" asp-controller="Patient" asp-action="PatientDashboard">Dashboard</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" asp-controller="Patient" asp-action="PatientProfile">My Profile</a>
+                    </li>
+                    <li class="nav-item">
+                        <form asp-controller="Patient" asp-action="PatientLogout" method="post" class="d-inline">
+                            @Html.AntiForgeryToken()
+                            <button type="submit" class="nav-link btn btn-link" style="color: white; text-decoration: none; padding: 0.5rem 1rem;">Logout</button>
+                        </form>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="container mt-4">
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header">
+                        <h4 class="mb-0">Reschedule Appointment</h4>
+                    </div>
+                    <div class="card-body">
+                        <!-- Current Appointment Info -->
+                        <div class="current-appointment-info">
+                            <h5>Current Appointment</h5>
+                            <p class="mb-1"><strong>Doctor:</strong> @Model.CurrentDoctorName</p>
+                            <p class="mb-0"><strong>Date & Time:</strong> @Model.CurrentAppointmentDateTime.ToString("MMMM dd, yyyy 'at' hh:mm tt")</p>
+                        </div>
+
+                        @if (ViewBag.BookingErrorMessage != null)
+                        {
+                            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                                @ViewBag.BookingErrorMessage
+                                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                            </div>
+                        }
+
+                        <form asp-controller="Patient" asp-action="RescheduleAppointment" method="post">
+                            @Html.AntiForgeryToken()
+                            @Html.HiddenFor(m => m.AppointmentId)
+                            @Html.HiddenFor(m => m.CurrentDoctorId)
+                            @Html.HiddenFor(m => m.CurrentDoctorName)
+                            @Html.HiddenFor(m => m.CurrentAppointmentDateTime)
+
+                            <div class="mb-3">
+                                <label asp-for="DoctorId" class="form-label"></label>
+                                <select asp-for="DoctorId" asp-items="Model.DoctorsList" class="form-select" id="doctorSelect">
+                                    <option value="">-- Select Doctor --</option>
+                                </select>
+                                <span asp-validation-for="DoctorId" class="text-danger"></span>
+                            </div>
+
+                            <div class="mb-3">
+                                <label asp-for="AppointmentDate" class="form-label"></label>
+                                <input asp-for="AppointmentDate" type="date" class="form-control" id="appointmentDate" min="@DateTime.Today.ToString("yyyy-MM-dd")" />
+                                <span asp-validation-for="AppointmentDate" class="text-danger"></span>
+                            </div>
+
+                            <div class="mb-3">
+                                <label asp-for="SelectedAvailabilitySlotId" class="form-label"></label>
+                                <select asp-for="SelectedAvailabilitySlotId" asp-items="Model.AvailableTimeSlots" class="form-select" id="timeSlotSelect">
+                                    <option value="">-- Select Time Slot --</option>
+                                </select>
+                                <span asp-validation-for="SelectedAvailabilitySlotId" class="text-danger"></span>
+                            </div>
+
+                            <div class="mb-3">
+                                <label asp-for="Issue" class="form-label"></label>
+                                <textarea asp-for="Issue" class="form-control" rows="3" placeholder="Describe your health issue or reason for visit"></textarea>
+                                <span asp-validation-for="Issue" class="text-danger"></span>
+                            </div>
+
+                            <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                                <a asp-controller="Patient" asp-action="PatientDashboard" class="btn btn-secondary">Cancel</a>
+                                <button type="submit" class="btn btn-primary">Reschedule Appointment</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer>
+        <p>&copy; @DateTime.Now.Year HS Hospital. All rights reserved.</p>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script>
+        $(document).ready(function () {
+            // Load time slots when doctor or date changes
+            $('#doctorSelect, #appointmentDate').change(function () {
+                loadAvailableTimeSlots();
+            });
+
+            // Load time slots on page load if doctor and date are selected
+            if ($('#doctorSelect').val() && $('#appointmentDate').val()) {
+                loadAvailableTimeSlots();
+            }
+
+            function loadAvailableTimeSlots() {
+                var doctorId = $('#doctorSelect').val();
+                var appointmentDate = $('#appointmentDate').val();
+                var timeSlotSelect = $('#timeSlotSelect');
+
+                // Clear existing options
+                timeSlotSelect.empty();
+                timeSlotSelect.append('<option value="">-- Select Time Slot --</option>');
+
+                if (doctorId && appointmentDate) {
+                    // Show loading message
+                    timeSlotSelect.append('<option value="" disabled>Loading...</option>');
+
+                    $.ajax({
+                        url: '@Url.Action("GetAvailableTimeSlots", "Patient")',
+                        type: 'GET',
+                        data: {
+                            doctorId: doctorId,
+                            appointmentDate: appointmentDate
+                        },
+                        success: function (data) {
+                            // Clear the select again
+                            timeSlotSelect.empty();
+                            timeSlotSelect.append('<option value="">-- Select Time Slot --</option>');
+
+                            if (data && data.length > 0) {
+                                $.each(data, function (index, slot) {
+                                    timeSlotSelect.append($('<option></option>').attr('value', slot.value).text(slot.text));
+                                });
+                            } else {
+                                timeSlotSelect.append('<option value="" disabled>No available time slots</option>');
+                            }
+                        },
+                        error: function () {
+                            timeSlotSelect.empty();
+                            timeSlotSelect.append('<option value="">-- Error loading time slots --</option>');
+                        }
+                    });
+                }
+            }
+        });
+    </script>
+</body>
+</html>

@@ -69,6 +69,15 @@
         .table-responsive {
             margin-top: 1rem;
         }
+
+        .btn-warning {
+            color: white;
+        }
+
+        .btn-group-sm > .btn {
+            padding: 0.25rem 0.5rem;
+            font-size: 0.875rem;
+        }
     </style>
 </head>
 <body>
@@ -104,7 +113,7 @@
         @if (ViewBag.SuccessMessage != null)
         {
             <div class="alert alert-success alert-dismissible fade show" role="alert">
-                @Html.Raw(ViewBag.SuccessMessage.ToString().Replace("<br/>", "<br />")) @* Use Html.Raw if message contains HTML like <br/> *@
+                @Html.Raw(ViewBag.SuccessMessage.ToString().Replace("<br/>", "<br />"))
                 <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
             </div>
         }
@@ -116,14 +125,13 @@
             </div>
         }
 
-
         <div class="text-center mb-4">
             <a asp-controller="Patient" asp-action="BookAppointment" class="btn btn-primary btn-lg">Book New Appointment</a>
         </div>
 
         <div class="row">
             <!-- Upcoming Appointments Table -->
-            <div class="col-lg-6 mb-4">
+            <div class="col-lg-12 mb-4">
                 <h3>Upcoming Appointments</h3>
                 @if (Model.UpcomingAppointments.Any())
                 {
@@ -137,6 +145,7 @@
                                     <th>Specialization</th>
                                     <th>Status</th>
                                     <th>Issue</th>
+                                    <th>Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -149,6 +158,23 @@
                                         <td>@appt.DoctorSpecialization</td>
                                         <td><span class="badge bg-info text-dark">@appt.Status</span></td>
                                         <td>@appt.Issue</td>
+                                        <td>
+                                            @if (appt.Status == "Scheduled" || appt.Status == "Confirmed")
+                                            {
+                                                <div class="btn-group btn-group-sm" role="group">
+                                                    <a asp-controller="Patient"
+                                                       asp-action="RescheduleAppointment"
+                                                       asp-route-appointmentId="@appt.AppointmentId"
+                                                       class="btn btn-warning">Reschedule</a>
+                                                    <button type="button"
+                                                            class="btn btn-danger"
+                                                            data-bs-toggle="modal"
+                                                            data-bs-target="#cancelModal-@appt.AppointmentId">
+                                                        Cancel
+                                                    </button>
+                                                </div>
+                                            }
+                                        </td>
                                     </tr>
                                 }
                             </tbody>
@@ -164,7 +190,7 @@
             </div>
 
             <!-- Appointment History Table -->
-            <div class="col-lg-6 mb-4">
+            <div class="col-lg-12 mb-4">
                 <h3>Appointment History</h3>
                 @if (Model.AppointmentHistory.Any())
                 {
@@ -218,6 +244,33 @@
             </div>
         </div>
     </div>
+
+    <!-- Cancel Confirmation Modals -->
+    @foreach (var appt in Model.UpcomingAppointments.Where(a => a.Status == "Scheduled" || a.Status == "Confirmed"))
+    {
+        <div class="modal fade" id="cancelModal-@appt.AppointmentId" tabindex="-1" aria-labelledby="cancelModalLabel-@appt.AppointmentId" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="cancelModalLabel-@appt.AppointmentId">Cancel Appointment</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p>Are you sure you want to cancel your appointment with <strong>@appt.DoctorName</strong> on <strong>@appt.AppointmentDateTime.ToString("yyyy-MM-dd")</strong> at <strong>@appt.AppointmentDateTime.ToString("hh:mm tt")</strong>?</p>
+                        <p class="text-muted">This action cannot be undone.</p>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">No, Keep Appointment</button>
+                        <form asp-controller="Patient" asp-action="CancelAppointment" method="post" class="d-inline">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="appointmentId" value="@appt.AppointmentId" />
+                            <button type="submit" class="btn btn-danger">Yes, Cancel Appointment</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
 
     <!-- Footer -->
     <footer>
