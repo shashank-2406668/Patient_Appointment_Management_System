@@ -1,103 +1,200 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using Patient_Appointment_Management_System.ViewModels; // For all your ViewModels
-using Patient_Appointment_Management_System.Services;   // For IAdminService
-using Patient_Appointment_Management_System.Models;     // For Admin model
-using Patient_Appointment_Management_System.Utils;      // For PasswordHelper
+using Patient_Appointment_Management_System.ViewModels;
+using Patient_Appointment_Management_System.Services;
+using Patient_Appointment_Management_System.Models; // This brings Patient_Appointment_Management_System.Models.LogLevel into scope
+using Patient_Appointment_Management_System.Utils;
 using System.Diagnostics;
-using System.Collections.Generic;
-using System.Linq;
+using System.Threading.Tasks;
+using Microsoft.AspNetCore.Http;
 using System;
-using System.Threading.Tasks;                           // For async operations
-// using Microsoft.AspNetCore.Authorization; // Uncomment if/when you implement ASP.NET Core Identity or custom auth schemes
+using System.Linq;
+// using Microsoft.Extensions.Logging; // If this was uncommented, it would also bring Microsoft.Extensions.Logging.LogLevel
 
 namespace Patient_Appointment_Management_System.Controllers
 {
-    // [Authorize] // You might want to authorize the entire controller once auth is fully set up
     public class AdminController : Controller
     {
         private readonly IAdminService _adminService;
-        // If you were to use a dedicated logging service like ILogger:
-        // private readonly ILogger<AdminController> _logger;
+        private readonly IPatientService _patientService;
+        private readonly IDoctorService _doctorService;
+        private readonly ISystemLogService _systemLogService;
+        private readonly IConflictService _conflictService;
 
-        // public AdminController(IAdminService adminService, ILogger<AdminController> logger)
-        public AdminController(IAdminService adminService)
+        public AdminController(
+            IAdminService adminService,
+            IPatientService patientService,
+            IDoctorService doctorService,
+            ISystemLogService systemLogService,
+            IConflictService conflictService)
         {
             _adminService = adminService;
-            // _logger = logger; // If using ILogger
+            _patientService = patientService;
+            _doctorService = doctorService;
+            _systemLogService = systemLogService;
+            _conflictService = conflictService;
         }
 
-        // GET: /Admin/AdminLogin
+        private bool IsAdminLoggedIn() => HttpContext.Session.GetString("AdminLoggedIn") == "true";
+
+        private IActionResult RedirectToLoginIfNotAdmin(string actionName = null)
+        {
+            if (!IsAdminLoggedIn())
+            {
+                TempData["ErrorMessage"] = "Please log in as admin to access this page.";
+                if (!string.IsNullOrEmpty(actionName))
+                {
+                    TempData["ReturnUrl"] = Url.Action(actionName, "Admin");
+                }
+                return RedirectToAction("AdminLogin");
+            }
+            return null;
+        }
+
         [HttpGet]
         public IActionResult AdminLogin()
         {
-            // URGENT: Standard path would be ~/Views/Admin/AdminLogin.cshtml
+            if (IsAdminLoggedIn()) return RedirectToAction("AdminDashboard");
             return View("~/Views/Home/AdminLogin.cshtml", new AdminLoginViewModel());
         }
 
-        // POST: /Admin/AdminLogin
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> AdminLogin(AdminLoginViewModel model)
         {
+            if (IsAdminLoggedIn()) return RedirectToAction("AdminDashboard");
+
             if (!ModelState.IsValid)
             {
-                // URGENT: Standard path would be ~/Views/Admin/AdminLogin.cshtml
                 return View("~/Views/Home/AdminLogin.cshtml", model);
             }
 
-            // _logger?.LogInformation($"Admin login attempt for email: {model.Email}"); // Example with ILogger
-            Debug.WriteLine($"Admin Login Attempt - Email: {model.Email}");
-
             var admin = await _adminService.GetAdminByEmailAsync(model.Email);
-
             if (admin != null && PasswordHelper.VerifyPassword(model.Password, admin.PasswordHash))
             {
                 HttpContext.Session.SetString("AdminLoggedIn", "true");
                 HttpContext.Session.SetInt32("AdminId", admin.AdminId);
-                HttpContext.Session.SetString("AdminName", admin.Name);
-                HttpContext.Session.SetString("AdminRole", admin.Role ?? "Admin"); // Ensure role is not null for session
+                HttpContext.Session.SetString("AdminName", admin.Name ?? "Admin");
+                HttpContext.Session.SetString("AdminRole", admin.Role ?? "Admin");
+
+                await _systemLogService.LogEventAsync(new SystemLog
+                {
+                    EventType = "AdminLoginSuccess",
+                    Message = $"Admin '{admin.Name}' (ID: {admin.AdminId}) logged in successfully.",
+                    Source = "AdminController",
+                    // --- QUALIFIED ENUM ---
+                    Level = Patient_Appointment_Management_System.Models.LogLevel.Information.ToString(),
+                    UserId = admin.AdminId.ToString()
+                });
 
                 TempData["AdminSuccessMessage"] = "Admin login successful!";
-                // _logger?.LogInformation($"Admin login successful for email: {model.Email}, AdminId: {admin.AdminId}");
                 return RedirectToAction("AdminDashboard");
             }
             else
             {
-                // _logger?.LogWarning($"Admin login failed for email: {model.Email}");
+                await _systemLogService.LogEventAsync(new SystemLog
+                {
+                    EventType = "AdminLoginFailure",
+                    Message = $"Failed login attempt for email: {model.Email}.",
+                    Source = "AdminController",
+                    // --- QUALIFIED ENUM ---
+                    Level = Patient_Appointment_Management_System.Models.LogLevel.Warning.ToString()
+                });
                 ModelState.AddModelError(string.Empty, "Invalid email or password.");
-                // URGENT: Standard path would be ~/Views/Admin/AdminLogin.cshtml
                 return View("~/Views/Home/AdminLogin.cshtml", model);
             }
         }
 
-        // GET: /Admin/AdminDashboard
         [HttpGet]
-        public IActionResult AdminDashboard()
+        public async Task<IActionResult> AdminDashboard()
         {
-            if (HttpContext.Session.GetString("AdminLoggedIn") != "true")
-            {
-                TempData["ErrorMessage"] = "Please log in as admin.";
-                return RedirectToAction("AdminLogin");
-            }
+            var authResult = RedirectToLoginIfNotAdmin(nameof(AdminDashboard));
+            if (authResult != null) return authResult;
 
             if (TempData.ContainsKey("AdminSuccessMessage"))
             {
                 ViewBag.SuccessMessage = TempData["AdminSuccessMessage"];
             }
-            // URGENT: Standard path would be ~/Views/Admin/AdminDashboard.cshtml
-            return View("~/Views/Home/AdminDashboard.cshtml");
+
+            var dashboardViewModel = new AdminDashboardViewModel
+            {
+                TotalPatients = await _patientService.GetTotalPatientsCountAsync(),
+                TotalDoctors = await _doctorService.GetTotalDoctorsCountAsync(),
+                RecentSystemLogs = await _systemLogService.GetRecentLogsAsync(10),
+                ActiveConflicts = await _conflictService.GetActiveConflictsAsync(5)
+            };
+
+            var recentPatientsDb = await _patientService.GetRecentPatientsAsync(5);
+            dashboardViewModel.RecentPatients = recentPatientsDb.Select(p => new PatientRowViewModel
+            {
+                PatientId = p.PatientId,
+                Name = p.Name,
+                Email = p.Email,
+                Phone = p.Phone,
+            }).ToList();
+
+            var recentDoctorsDb = await _doctorService.GetRecentDoctorsAsync(5);
+            dashboardViewModel.RecentDoctors = recentDoctorsDb.Select(d => new DoctorRowViewModel
+            {
+                DoctorId = d.DoctorId,
+                Name = d.Name,
+                Email = d.Email,
+                Phone = d.Phone,
+                Specialization = d.Specialization,
+            }).ToList();
+
+            return View("~/Views/Home/AdminDashboard.cshtml", dashboardViewModel);
         }
 
-        // GET: /Admin/ManageUsers
-        // Fulfills "manageUsers()" by listing Admins. Can be expanded for Doctors/Patients.
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> CancelAppointmentForConflict(int appointmentId)
+        {
+            var authResult = RedirectToLoginIfNotAdmin();
+            // For AJAX, it's better to return an UnauthorizedResult or specific JSON
+            if (authResult != null) return Unauthorized(new { success = false, message = "Admin not logged in. Please refresh and log in again." });
+
+
+            if (appointmentId <= 0)
+            {
+                return BadRequest(new { success = false, message = "Invalid Appointment ID." });
+            }
+
+            var success = await _conflictService.ResolveConflictByCancellingAppointmentAsync(appointmentId);
+            var adminId = HttpContext.Session.GetInt32("AdminId")?.ToString() ?? "UnknownAdmin";
+
+            if (success)
+            {
+                await _systemLogService.LogEventAsync(new SystemLog
+                {
+                    EventType = "ConflictResolved",
+                    Message = $"Admin (ID: {adminId}) cancelled Appointment ID: {appointmentId} due to conflict.",
+                    Source = "AdminController",
+                    // --- QUALIFIED ENUM ---
+                    Level = Patient_Appointment_Management_System.Models.LogLevel.Information.ToString(),
+                    UserId = adminId
+                });
+                return Json(new { success = true, message = $"Appointment {appointmentId} cancelled successfully." });
+            }
+            else
+            {
+                await _systemLogService.LogEventAsync(new SystemLog
+                {
+                    EventType = "ConflictResolutionFailure",
+                    Message = $"Admin (ID: {adminId}) failed to cancel Appointment ID: {appointmentId}.",
+                    Source = "AdminController",
+                    // --- QUALIFIED ENUM ---
+                    Level = Patient_Appointment_Management_System.Models.LogLevel.Warning.ToString(),
+                    UserId = adminId
+                });
+                return Json(new { success = false, message = $"Failed to cancel appointment {appointmentId} or appointment not found." });
+            }
+        }
+
         [HttpGet]
         public async Task<IActionResult> ManageUsers()
         {
-            if (HttpContext.Session.GetString("AdminLoggedIn") != "true")
-            {
-                TempData["ErrorMessage"] = "Please log in as admin.";
-                return RedirectToAction("AdminLogin");
-            }
+            var authResult = RedirectToLoginIfNotAdmin(nameof(ManageUsers));
+            if (authResult != null) return authResult;
 
             var adminsFromDb = await _adminService.GetAllAdminsAsync();
             var adminDisplayViewModels = adminsFromDb.Select(a => new AdminDisplayViewModel
@@ -108,49 +205,29 @@ namespace Patient_Appointment_Management_System.Controllers
                 Role = a.Role
             }).ToList();
 
-            var viewModel = new AdminManageUsersViewModel
-            {
-                Admins = adminDisplayViewModels
-            };
+            var viewModel = new AdminManageUsersViewModel { Admins = adminDisplayViewModels };
 
             if (TempData.ContainsKey("AdminManagementMessage")) ViewBag.SuccessMessage = TempData["AdminManagementMessage"];
             if (TempData.ContainsKey("AdminManagementError")) ViewBag.ErrorMessage = TempData["AdminManagementError"];
 
-            // URGENT: Standard path would be ~/Views/Admin/ManageUsers.cshtml
-            // You mentioned your view is AdminManagement.cshtml, so using that path.
-            return View("~/Views/Home/AdminManagement.cshtml", viewModel);
+            return View("~/Views/Home/ManageUsers.cshtml", viewModel);
         }
 
-        // GET: /Admin/AddAdmin
-        // Fulfills "addAdmin()"
         [HttpGet]
-        // [Authorize(Roles = "SuperAdmin")] // Example for role-based authorization
         public IActionResult AddAdmin()
         {
-            if (HttpContext.Session.GetString("AdminLoggedIn") != "true")
-            {
-                TempData["ErrorMessage"] = "Please log in to perform this action.";
-                return RedirectToAction("AdminLogin");
-            }
-            // Optional: Add role-based check here from session if needed
-            // var currentAdminRole = HttpContext.Session.GetString("AdminRole");
-            // if (currentAdminRole != "SuperAdmin") { ... return RedirectToAction("ManageUsers", new { ErrorMessage = "Unauthorized"}); }
-
-            // URGENT: Standard path would be ~/Views/Admin/AddAdmin.cshtml
-            return View("~/Views/Admin/AddAdmin.cshtml", new AdminAddViewModel());
+            var authResult = RedirectToLoginIfNotAdmin(nameof(AddAdmin));
+            if (authResult != null) return authResult;
+            return View("~/Views/Home/AddAdmin.cshtml", new AdminAddViewModel());
         }
 
-        // POST: /Admin/AddAdmin
         [HttpPost]
         [ValidateAntiForgeryToken]
-        // [Authorize(Roles = "SuperAdmin")]
         public async Task<IActionResult> AddAdmin(AdminAddViewModel model)
         {
-            if (HttpContext.Session.GetString("AdminLoggedIn") != "true")
-            {
-                TempData["ErrorMessage"] = "Your session has expired or you are not logged in. Please log in again.";
-                return RedirectToAction("AdminLogin");
-            }
+            var authResult = RedirectToLoginIfNotAdmin();
+            if (authResult != null) return authResult; // Standard redirect for form posts
+
 
             if (ModelState.IsValid)
             {
@@ -158,8 +235,7 @@ namespace Patient_Appointment_Management_System.Controllers
                 if (existingAdmin != null)
                 {
                     ModelState.AddModelError("Email", "An admin with this email address already exists.");
-                    // URGENT: Standard path would be ~/Views/Admin/AddAdmin.cshtml
-                    return View("~/Views/Admin/AddAdmin.cshtml", model);
+                    return View("~/Views/Home/AddAdmin.cshtml", model);
                 }
 
                 var admin = new Admin
@@ -170,89 +246,134 @@ namespace Patient_Appointment_Management_System.Controllers
                 };
 
                 bool result = await _adminService.AddAdminAsync(admin, model.Password);
+                var currentAdminId = HttpContext.Session.GetInt32("AdminId")?.ToString() ?? "System";
                 if (result)
                 {
+                    await _systemLogService.LogEventAsync(new SystemLog
+                    {
+                        EventType = "AdminCreated",
+                        Message = $"Admin '{admin.Name}' (Email: {admin.Email}) created by Admin ID: {currentAdminId}.",
+                        Source = "AdminController",
+                        // --- QUALIFIED ENUM ---
+                        Level = Patient_Appointment_Management_System.Models.LogLevel.Information.ToString(),
+                        UserId = currentAdminId
+                    });
                     TempData["AdminManagementMessage"] = $"Admin '{admin.Name}' added successfully.";
-                    // _logger?.LogInformation($"Admin '{admin.Name}' (ID: {admin.AdminId}) added by Admin ID: {HttpContext.Session.GetInt32("AdminId")?.ToString() ?? "N/A"}");
                     return RedirectToAction("ManageUsers");
                 }
                 else
                 {
-                    ModelState.AddModelError(string.Empty, "An error occurred while adding the admin. Please try again or contact support.");
+                    await _systemLogService.LogEventAsync(new SystemLog
+                    {
+                        EventType = "AdminCreationFailure",
+                        Message = $"Failed to create admin '{model.Name}' (Email: {model.Email}) by Admin ID: {currentAdminId}.",
+                        Source = "AdminController",
+                        // --- QUALIFIED ENUM ---
+                        Level = Patient_Appointment_Management_System.Models.LogLevel.Error.ToString(), // Corrected the specific error line
+                        UserId = currentAdminId
+                    });
+                    ModelState.AddModelError(string.Empty, "An error occurred while adding the admin.");
                 }
             }
-            // URGENT: Standard path would be ~/Views/Admin/AddAdmin.cshtml
-            return View("~/Views/Admin/AddAdmin.cshtml", model);
+            return View("~/Views/Home/AddAdmin.cshtml", model);
         }
 
+        // File: Controllers/AdminController.cs (ViewSystemLogs action)
 
-        // GET: /Admin/ViewSystemLogs
-        // Fulfills "viewSystemLogs()"
         [HttpGet]
-        public IActionResult ViewSystemLogs()
+        public async Task<IActionResult> ViewSystemLogs(int page = 1, string filterLevel = null, DateTime? startDate = null, DateTime? endDate = null)
         {
-            if (HttpContext.Session.GetString("AdminLoggedIn") != "true")
+            var authResult = RedirectToLoginIfNotAdmin(nameof(ViewSystemLogs));
+            if (authResult != null) return authResult;
+
+            int pageSize = 20; // Or from configuration
+            var (logs, totalLogs) = await _systemLogService.GetPaginatedLogsAsync(page, pageSize, filterLevel, startDate, endDate);
+
+            var viewModel = new ViewSystemLogsViewModel // ViewSystemLogsViewModel constructor will populate AvailableLogLevels
             {
-                TempData["ErrorMessage"] = "Please log in as admin.";
-                return RedirectToAction("AdminLogin");
-            }
-
-            // This is a placeholder. Real logging would involve a logging service (e.g., Serilog, NLog writing to a file/DB)
-            // and fetching logs from there.
-            var logs = new List<string> {
-                $"{DateTime.Now}: System log viewing initiated by {HttpContext.Session.GetString("AdminName") ?? "Admin"}.",
-                $"{DateTime.Now.AddMinutes(-5)}: Placeholder log: User login event.",
-                $"{DateTime.Now.AddMinutes(-10)}: Placeholder log: Scheduled task executed."
-                // In a real system, these would be actual log entries.
+                SystemLogs = logs,
+                CurrentPage = page,
+                TotalPages = (int)Math.Ceiling(totalLogs / (double)pageSize),
+                TotalLogs = totalLogs,
+                FilterLevel = filterLevel,
+                FilterStartDate = startDate,
+                FilterEndDate = endDate
+                // AvailableLogLevels will be set by the ViewModel's constructor
             };
-            ViewBag.LogsTitle = "System Event Logs";
 
-            // URGENT: Standard path would be ~/Views/Admin/ViewSystemLogs.cshtml
-            return View("~/Views/Admin/ViewSystemLogs.cshtml", logs);
+            ViewBag.LogsTitle = "System Event Logs"; // Can be set in the view as well
+            return View("~/Views/Home/ViewSystemLogs.cshtml", viewModel);
         }
 
-        // POST: /Admin/AdminLogout
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public IActionResult AdminLogout()
+        public async Task<IActionResult> AdminLogout()
         {
-            // _logger?.LogInformation($"Admin logout for AdminId: {HttpContext.Session.GetInt32("AdminId")?.ToString() ?? "N/A"}");
+            var adminName = HttpContext.Session.GetString("AdminName");
+            var adminId = HttpContext.Session.GetInt32("AdminId")?.ToString() ?? "Unknown";
+
+            if (IsAdminLoggedIn())
+            {
+                await _systemLogService.LogEventAsync(new SystemLog
+                {
+                    EventType = "AdminLogout",
+                    Message = $"Admin '{adminName}' (ID: {adminId}) logged out.",
+                    Source = "AdminController",
+                    // --- QUALIFIED ENUM ---
+                    Level = Patient_Appointment_Management_System.Models.LogLevel.Information.ToString(),
+                    UserId = adminId
+                });
+            }
+
             HttpContext.Session.Clear();
-            TempData["GlobalSuccessMessage"] = "You have been successfully logged out as Admin.";
-            return RedirectToAction("Index", "Home"); // Or "AdminLogin"
+            TempData["AdminSuccessMessage"] = "You have been successfully logged out.";
+            return RedirectToAction("AdminLogin");
         }
 
-        // GET: /Admin/AdminForgotPassword
         [HttpGet]
         public IActionResult AdminForgotPassword()
         {
-            // URGENT: Standard path would be ~/Views/Admin/AdminForgotPassword.cshtml
+            if (IsAdminLoggedIn()) return RedirectToAction("AdminDashboard");
             return View("~/Views/Home/AdminForgotPassword.cshtml", new AdminForgotPasswordViewModel());
         }
 
-        // POST: /Admin/AdminForgotPassword
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> AdminForgotPassword(AdminForgotPasswordViewModel model)
         {
+            if (IsAdminLoggedIn()) return RedirectToAction("AdminDashboard");
+
             if (ModelState.IsValid)
             {
                 var admin = await _adminService.GetAdminByEmailAsync(model.Email);
+                string eventType = "PasswordResetRequest";
+                string message;
+                // --- QUALIFY ENUM HERE ---
+                Patient_Appointment_Management_System.Models.LogLevel level = Patient_Appointment_Management_System.Models.LogLevel.Information;
+
                 if (admin != null)
                 {
-                    // TODO: Implement actual password reset token generation, storage, and email sending logic.
-                    // _logger?.LogInformation($"Password reset requested for admin email: {model.Email}");
+                    message = $"Password reset initiated for admin email: {model.Email} (Admin ID: {admin.AdminId}).";
                     Debug.WriteLine($"Password reset token should be generated for {admin.Email}");
                 }
-                // Always show a generic message for security (to prevent email enumeration)
+                else
+                {
+                    message = $"Password reset attempt for non-existent admin email: {model.Email}.";
+                    // --- QUALIFY ENUM HERE ---
+                    level = Patient_Appointment_Management_System.Models.LogLevel.Warning;
+                }
+                await _systemLogService.LogEventAsync(new SystemLog
+                {
+                    EventType = eventType,
+                    Message = message,
+                    Source = "AdminController",
+                    Level = level.ToString() // Use the qualified enum variable
+                });
+
                 TempData["ForgotPasswordMessage"] = "If an account with that email address exists, a password reset link has been sent. Please check your inbox (and spam folder).";
                 return RedirectToAction("AdminLogin");
             }
-            // URGENT: Standard path would be ~/Views/Admin/AdminForgotPassword.cshtml
             return View("~/Views/Home/AdminForgotPassword.cshtml", model);
         }
-
-        // TODO: Implement EditAdmin (GET and POST) and DeleteAdmin (POST) actions
-        // for the `manageUsers()` functionality if required.
     }
 }

@@ -1,214 +1,432 @@
-﻿@{
-    Layout = null;
+﻿@model Patient_Appointment_Management_System.ViewModels.AdminDashboardViewModel
+@{
     ViewData["Title"] = "Admin Dashboard";
+    Layout = "~/Views/Shared/_AdminLayout.cshtml"; // CRITICAL: Uses the shared admin layout
 }
 
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>@ViewData["Title"]</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
-    <style>
-        body {
-            background-color: #f0f8ff;
-        }
+@*
+    The main navbar, <head> content (except page-specific styles/scripts),
+    and general page structure (like <body>, common JS includes)
+    are now handled by _AdminLayout.cshtml.
+*@
 
-        .nav-tabs .nav-link.active {
-            background-color: #007bff;
-            color: white;
-        }
+<div class="container-fluid">
+    @* Or 'container' if you prefer less width. _AdminLayout uses container-fluid for RenderBody wrapper. *@
+    <h1 class="text-center text-primary mb-4 display-6">Admin Dashboard</h1>
 
-        .card {
-            border: none;
-            border-radius: 10px;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-        }
-    </style>
-</head>
-<body>
-    @* ... (rest of your AdminDashboard.cshtml) ... *@
-    <nav class="navbar navbar-expand-lg navbar-light bg-primary p-3">
-        <div class="container-fluid">
-            <a class="navbar-brand text-white" asp-controller="Admin" asp-action="AdminDashboard">Admin Portal</a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNavAdmin">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNavAdmin">
-                <ul class="navbar-nav me-auto">
-                    @* VVV UPDATE THIS LINK VVV *@
-                    <li class="nav-item">
-                        <a class="nav-link text-white" asp-controller="Admin" asp-action="AdminManagement">
-                            <i class="bi bi-gear me-2"></i>Manage Admin
-                        </a>
-                    </li>
-                </ul>
-                <ul class="navbar-nav">
-                    <li class="nav-item">
-                        <form method="post" asp-controller="Admin" asp-action="AdminLogout" id="logoutFormAdmin" class="d-inline">
-                            @Html.AntiForgeryToken() @* Good to add this *@
-                            <button type="submit" class="nav-link btn btn-link text-white" style="display: inline; border: none; padding: 0; background: none;">
-                                <i class="bi bi-box-arrow-right me-2"></i>Logout
-                            </button>
-                        </form>
-                    </li>
-                </ul>
+    @if (TempData["AdminSuccessMessage"] != null)
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            @TempData["AdminSuccessMessage"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+    else if (ViewBag.SuccessMessage != null)
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            @ViewBag.SuccessMessage
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+    @if (TempData["ErrorMessage"] != null)
+    {
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            @TempData["ErrorMessage"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+    else if (ViewBag.ErrorMessage != null)
+    {
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            @ViewBag.ErrorMessage
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+    <!-- Summary Cards -->
+    <div class="row mb-4">
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card summary-card text-white bg-info h-100">
+                <div class="card-body d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="text-xs font-weight-bold text-uppercase mb-1">Total Patients</div>
+                        <div class="h5 mb-0 font-weight-bold" id="total-patients-count">@Model.TotalPatients</div>
+                    </div>
+                    <i class="bi bi-people-fill fs-2 opacity-75"></i>
+                </div>
             </div>
         </div>
-    </nav>
-    @* ... (rest of your AdminDashboard.cshtml) ... *@
-
-    <div class="container my-5">
-        <h1 class="text-center text-primary mb-4">Admin Dashboard</h1>
-
-        @if (ViewBag.SuccessMessage != null)
-        {
-            <div class="alert alert-success">
-                @ViewBag.SuccessMessage
-            </div>
-        }
-
-        <!-- Your existing tab structure and content from the dashboard HTML -->
-        <ul class="nav nav-tabs" id="dashboardTabs" role="tablist">
-            <li class="nav-item" role="presentation">
-                <button class="nav-link active" id="patients-tab" data-bs-toggle="tab" data-bs-target="#patients" type="button" role="tab">Registered Patients</button>
-            </li>
-            <li class="nav-item" role="presentation">
-                <button class="nav-link" id="doctors-tab" data-bs-toggle="tab" data-bs-target="#doctors" type="button" role="tab">Registered Doctors</button>
-            </li>
-            <li class="nav-item" role="presentation">
-                <button class="nav-link" id="logs-tab" data-bs-toggle="tab" data-bs-target="#logs" type="button" role="tab">System Logs</button>
-            </li>
-            <li class="nav-item" role="presentation">
-                <button class="nav-link" id="conflicts-tab" data-bs-toggle="tab" data-bs-target="#conflicts" type="button" role="tab">Conflicts</button>
-            </li>
-        </ul>
-        <div class="tab-content mt-4" id="dashboardTabsContent">
-            <div class="tab-pane fade show active" id="patients" role="tabpanel">
-                <div class="card">
-                    <div class="card-header">Registered Patients</div>
-                    <div class="card-body">
-                        <table class="table table-striped">
-                            <thead><tr><th>Name</th><th>Phone</th><th>Email</th><th>Login Time</th><th>Logout Time</th></tr></thead>
-                            <tbody id="patients-table"></tbody>
-                        </table>
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card summary-card text-white bg-success h-100">
+                <div class="card-body d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="text-xs font-weight-bold text-uppercase mb-1">Total Doctors</div>
+                        <div class="h5 mb-0 font-weight-bold" id="total-doctors-count">@Model.TotalDoctors</div>
                     </div>
+                    <i class="bi bi-heart-pulse-fill fs-2 opacity-75"></i>
                 </div>
             </div>
-            <div class="tab-pane fade" id="doctors" role="tabpanel">
-                <div class="card">
-                    <div class="card-header">Registered Doctors</div>
-                    <div class="card-body">
-                        <table class="table table-striped">
-                            <thead><tr><th>Name</th><th>Phone</th><th>Email</th><th>Login Time</th><th>Logout Time</th></tr></thead>
-                            <tbody id="doctors-table"></tbody>
-                        </table>
+        </div>
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card summary-card text-dark bg-warning h-100">
+                @* Changed text to dark for better contrast on warning *@
+                <div class="card-body d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="text-xs font-weight-bold text-uppercase mb-1">Active Conflicts</div>
+                        <div class="h5 mb-0 font-weight-bold" id="active-conflicts-count">@Model.ActiveConflicts.Count()</div>
                     </div>
+                    <i class="bi bi-exclamation-triangle-fill fs-2 opacity-75"></i>
                 </div>
             </div>
-            <div class="tab-pane fade" id="logs" role="tabpanel">
-                <div class="card">
-                    <div class="card-header">System Logs</div>
-                    <div class="card-body">
-                        <ul id="system-logs" class="list-unstyled"><li>No logs available</li></ul>
+        </div>
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card summary-card text-white bg-secondary h-100">
+                <div class="card-body d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="text-xs font-weight-bold text-uppercase mb-1">Recent Logs</div>
+                        <div class="h5 mb-0 font-weight-bold" id="recent-logs-count">@Model.RecentSystemLogs.Count()</div>
                     </div>
-                </div>
-            </div>
-            <div class="tab-pane fade" id="conflicts" role="tabpanel">
-                <div class="card">
-                    <div class="card-header">Scheduling Conflicts</div>
-                    <div class="card-body">
-                        <table class="table table-striped">
-                            <thead><tr><th>Patient Name</th><th>Doctor Name</th><th>Conflict Details</th><th>Actions</th></tr></thead>
-                            <tbody id="conflicts-table"></tbody>
-                        </table>
-                    </div>
+                    <i class="bi bi-card-list fs-2 opacity-75"></i>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Your Resolve Conflict Modal HTML here -->
-    <div class="modal fade" id="resolveConflictModal" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="resolveConflictModalLabel">Resolve Conflict</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+    <!-- Tabs -->
+    <ul class="nav nav-tabs" id="dashboardTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="patients-tab" data-bs-toggle="tab" data-bs-target="#patients-content" type="button" role="tab" aria-controls="patients-content" aria-selected="true">Recent Patients</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="doctors-tab" data-bs-toggle="tab" data-bs-target="#doctors-content" type="button" role="tab" aria-controls="doctors-content" aria-selected="false">Recent Doctors</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="logs-tab" data-bs-toggle="tab" data-bs-target="#logs-content" type="button" role="tab" aria-controls="logs-content" aria-selected="false">Recent System Logs</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="conflicts-tab" data-bs-toggle="tab" data-bs-target="#conflicts-content" type="button" role="tab" aria-controls="conflicts-content" aria-selected="false">Active Conflicts</button>
+        </li>
+    </ul>
+
+    <!-- Tab Content -->
+    <div class="tab-content mt-3" id="dashboardTabsContent">
+        <div class="tab-pane fade show active" id="patients-content" role="tabpanel" aria-labelledby="patients-tab">
+            <div class="card">
+                <div class="card-header fw-bold">
+                    Recent Registered Patients (@Model.RecentPatients.Count() of @Model.TotalPatients Total)
                 </div>
-                <div class="modal-body">
-                    <p><strong>Patient Name:</strong> <span id="conflict-patient"></span></p>
-                    <p><strong>Doctor Name:</strong> <span id="conflict-doctor"></span></p>
-                    <p><strong>Conflict Details:</strong> <span id="conflict-details"></span></p>
-                    <p>Do you want to cancel this appointment?</p>
+                <div class="card-body">
+                    @if (Model.RecentPatients != null && Model.RecentPatients.Any())
+                    {
+                        <div class="table-responsive">
+                            <table class="table table-striped table-hover table-sm">
+                                <thead><tr><th>ID</th><th>Name</th><th>Email</th><th>Phone</th></tr></thead>
+                                <tbody id="patients-table">
+                                    @foreach (var patient in Model.RecentPatients)
+                                    {
+                                        <tr>
+                                            <td>@patient.PatientId</td> @* UPDATED: Assuming Patient PK is PatientId *@
+                                            <td>@patient.Name</td>
+                                            <td>@patient.Email</td>
+                                            <td>@patient.Phone</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                    else
+                    {
+                        <p class="text-muted">No recent patient registrations found.</p>
+                    }
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                    <button type="button" class="btn btn-danger" id="cancelAppointmentButton">Cancel Appointment</button>
+            </div>
+        </div>
+
+        <div class="tab-pane fade" id="doctors-content" role="tabpanel" aria-labelledby="doctors-tab">
+            <div class="card">
+                <div class="card-header fw-bold">
+                    Recent Registered Doctors (@Model.RecentDoctors.Count() of @Model.TotalDoctors Total)
+                </div>
+                <div class="card-body">
+                    @if (Model.RecentDoctors != null && Model.RecentDoctors.Any())
+                    {
+                        <div class="table-responsive">
+                            <table class="table table-striped table-hover table-sm">
+                                <thead><tr><th>ID</th><th>Name</th><th>Email</th><th>Phone</th><th>Specialization</th></tr></thead>
+                                <tbody id="doctors-table">
+                                    @foreach (var doctor in Model.RecentDoctors)
+                                    {
+                                        <tr>
+                                            <td>@doctor.DoctorId</td> @* UPDATED: Assuming Doctor PK is DoctorId *@
+                                            <td>@doctor.Name</td>
+                                            <td>@doctor.Email</td>
+                                            <td>@doctor.Phone</td>
+                                            <td>@doctor.Specialization</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                    else
+                    {
+                        <p class="text-muted">No recent doctor registrations found.</p>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <div class="tab-pane fade" id="logs-content" role="tabpanel" aria-labelledby="logs-tab">
+            <div class="card">
+                <div class="card-header fw-bold">Recent System Logs</div>
+                <div class="card-body" style="max-height: 300px; overflow-y: auto;">
+                    @if (Model.RecentSystemLogs != null && Model.RecentSystemLogs.Any())
+                    {
+                        <ul id="system-logs" class="list-group list-group-flush">
+                            @foreach (var log in Model.RecentSystemLogs)
+                            {
+                                <li class="list-group-item small">
+                                    @* Assuming SystemLog has properties: Timestamp, Level, Source, Message *@
+                                    <span>@log.Timestamp.ToString("yyyy-MM-dd HH:mm:ss")</span> -
+                                    <span class="fw-bold">[@log.Level]</span>
+                                    <span>(@log.Source)</span>:
+                                    <span>@log.Message</span>
+                                </li>
+                            }
+                        </ul>
+                    }
+                    else
+                    {
+                        <p class="text-muted">No recent system logs found.</p>
+                    }
+                </div>
+                <div class="card-footer text-end">
+                    <a asp-controller="Admin" asp-action="ViewSystemLogs" class="btn btn-sm btn-outline-primary">View All Logs</a>
+                </div>
+            </div>
+        </div>
+
+        <div class="tab-pane fade" id="conflicts-content" role="tabpanel" aria-labelledby="conflicts-tab">
+            <div class="card">
+                <div class="card-header fw-bold">Active Scheduling Conflicts</div>
+                <div class="card-body">
+                    @if (Model.ActiveConflicts != null && Model.ActiveConflicts.Any())
+                    {
+                        <div class="table-responsive">
+                            <table class="table table-striped table-hover table-sm">
+                                <thead><tr><th>Conflict ID</th><th>Doctor</th><th>Conflict Time</th><th>Patient(s) Involved</th><th>Details</th><th class="text-center">Actions</th></tr></thead>
+                                <tbody id="conflicts-table">
+                                    @foreach (var conflict in Model.ActiveConflicts) @* Model.ActiveConflicts is List<SchedulingConflictViewModel> *@
+                                    {
+                                        <tr data-conflict-id="@conflict.ConflictId">
+                                            @* Line 221: This needs conflict.ConflictId to exist *@
+                                            <td>@conflict.ConflictId</td>
+                                            <td>@Html.DisplayFor(modelItem => conflict.DoctorName)</td>
+                                            <td>@conflict.ConflictTime.ToString("MMM dd, yyyy h:mm tt")</td>
+                                            <td>
+                                                @if (!string.IsNullOrEmpty(conflict.Patient1Name))
+                                                {
+                                                    <div>@conflict.Patient1Name (Appt: @conflict.Appointment1Id)</div>
+                                                }
+                                                @if (!string.IsNullOrEmpty(conflict.Patient2Name))
+                                                {
+                                                    <div>@conflict.Patient2Name (Appt: @conflict.Appointment2Id)</div>
+                                                }
+                                            </td>
+                                            <td>@Html.DisplayFor(modelItem => conflict.ConflictDetails)</td>
+                                            <td class="text-center">
+                                                @if (conflict.Appointment1Id.HasValue)
+                                                {
+                                                    <button class="btn btn-warning btn-sm resolve-btn mb-1"
+                                                            data-appointment-id="@conflict.Appointment1Id"
+                                                            data-patient-name="@conflict.Patient1Name"
+                                                            data-doctor-name="@conflict.DoctorName"
+                                                            data-conflict-summary="@conflict.ConflictDetails"
+                                                            data-bs-toggle="modal" data-bs-target="#resolveConflictModal" title="Resolve for @conflict.Patient1Name's Appointment">
+                                                        <i class="bi bi-tools"></i> Resolve Appt @conflict.Appointment1Id
+                                                    </button>
+                                                }
+                                                @if (conflict.Appointment2Id.HasValue)
+                                                {
+                                                    <button class="btn btn-warning btn-sm resolve-btn"
+                                                            data-appointment-id="@conflict.Appointment2Id"
+                                                            data-patient-name="@conflict.Patient2Name"
+                                                            data-doctor-name="@conflict.DoctorName"
+                                                            data-conflict-summary="@conflict.ConflictDetails"
+                                                            data-bs-toggle="modal" data-bs-target="#resolveConflictModal" title="Resolve for @conflict.Patient2Name's Appointment">
+                                                        <i class="bi bi-tools"></i> Resolve Appt @conflict.Appointment2Id
+                                                    </button>
+                                                }
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                    else
+                    {
+                        <p class="text-muted">No active scheduling conflicts found.</p>
+                    }
                 </div>
             </div>
         </div>
     </div>
+</div>
 
-    <script src="https://code.jquery.com/jquery-3.6.4.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/js/bootstrap.bundle.min.js"></script>
+<!-- Resolve Conflict Modal -->
+<div class="modal fade" id="resolveConflictModal" tabindex="-1" aria-labelledby="resolveConflictModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="resolveConflictModalLabel">Resolve Scheduling Conflict</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p><strong>Patient:</strong> <span id="modal-conflict-patient"></span></p>
+                <p><strong>Doctor:</strong> <span id="modal-conflict-doctor"></span></p>
+                <p><strong>Appointment ID to Cancel:</strong> <span id="modal-appointment-id-display"></span></p>
+                <p><strong>Conflict Summary:</strong> <span id="modal-conflict-summary-details"></span></p>
+                <hr />
+                <p>To resolve this, you can cancel the selected appointment. This action cannot be undone directly from here. Other resolution methods (e.g., rescheduling) would require more complex UI.</p>
+                <input type="hidden" id="modal-appointment-id-to-cancel" value="" />
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-danger" id="confirmCancelAppointmentButton"><i class="bi bi-trash me-1"></i>Confirm Cancellation</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Toast container for notifications (can be placed in layout or here if specific to page) -->
+<div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 1100">
+    <div id="liveToast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="toast-header">
+            <strong class="me-auto" id="toastTitle">Notification</strong>
+            <small id="toastTimestamp">Just now</small>
+            <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+        <div class="toast-body" id="toastBody">
+            This is a toast message.
+        </div>
+    </div>
+</div>
+
+
+@section Scripts {
     <script>
-        // Your existing JavaScript to populate tables with sample data
         $(document).ready(function () {
-            const data = {
-                 patients: [
-                    { name: "John Doe", phone: "1234567890", email: "john@example.com", login: "10:00 AM", logout: "2:00 PM" },
-                    { name: "Alice Brown", phone: "9876543210", email: "alice@example.com", login: "9:00 AM", logout: "1:00 PM" }
-                ],
-                doctors: [
-                    { name: "Dr. Jane Smith", phone: "5551234567", email: "jane@example.com", login: "8:00 AM", logout: "12:00 PM" },
-                    { name: "Dr. Bob White", phone: "5559876543", email: "bob@example.com", login: "11:00 AM", logout: "3:00 PM" }
-                ],
-                systemLogs: [
-                    "Patient John Doe logged in.",
-                    "Doctor Jane Smith logged out.",
-                    "New patient registered: Alice Brown."
-                ],
-                conflicts: [
-                    { patient: "John Doe", doctor: "Dr. Jane Smith", details: "Overlapping appointment at 10:30 AM" },
-                    { patient: "Alice Brown", doctor: "Dr. Bob White", details: "Double booking at 11:00 AM" }
-                ]
-            };
-            // Populate patients table
-            const patientsTable = $('#patients-table');
-            data.patients.forEach(patient => {
-                patientsTable.append(`<tr><td>${patient.name}</td><td>${patient.phone}</td><td>${patient.email}</td><td>${patient.login}</td><td>${patient.logout}</td></tr>`);
-            });
-            const doctorsTable = $('#doctors-table');
-            data.doctors.forEach(doctor => {
-                doctorsTable.append(`<tr><td>${doctor.name}</td><td>${doctor.phone}</td><td>${doctor.email}</td><td>${doctor.login}</td><td>${doctor.logout}</td></tr>`);
-            });
-            const logsContainer = $('#system-logs');
-            logsContainer.empty();
-            data.systemLogs.forEach(log => {
-                logsContainer.append(`<li>${log}</li>`);
-            });
-            const conflictsTable = $('#conflicts-table');
-            data.conflicts.forEach((conflict, index) => {
-                conflictsTable.append(`<tr><td>${conflict.patient}</td><td>${conflict.doctor}</td><td>${conflict.details}</td><td><button class="btn btn-primary btn-sm resolve-btn" data-index="${index}" data-bs-toggle="modal" data-bs-target="#resolveConflictModal">Resolve</button></td></tr>`);
-            });
+            // Antiforgery token should be available from a meta tag in _AdminLayout.cshtml
+            const requestVerificationToken = $('meta[name="RequestVerificationToken"]').attr('content');
+
+            // Function to show toast notification
+            function showToast(title, message, type = 'success') {
+                const toastLiveExample = document.getElementById('liveToast');
+                const toast = new bootstrap.Toast(toastLiveExample, { delay: 5000 }); // Auto-hide after 5 seconds
+                $('#toastTitle').text(title);
+                $('#toastBody').text(message);
+                $('#toastTimestamp').text('Just now'); // Or format current time
+
+                toastLiveExample.classList.remove('bg-success', 'bg-danger', 'bg-warning', 'bg-info', 'text-white', 'text-dark');
+                if (type === 'success') {
+                    toastLiveExample.classList.add('bg-success', 'text-white');
+                } else if (type === 'error') {
+                    toastLiveExample.classList.add('bg-danger', 'text-white');
+                } else if (type === 'warning') {
+                    toastLiveExample.classList.add('bg-warning', 'text-dark');
+                } else { // info or default
+                    toastLiveExample.classList.add('bg-info', 'text-white');
+                }
+                toast.show();
+            }
 
             // Handle Resolve button click for conflicts
             $(document).on('click', '.resolve-btn', function () {
-                const conflictIndex = $(this).data('index');
-                const conflict = data.conflicts[conflictIndex];
-                $('#conflict-patient').text(conflict.patient);
-                $('#conflict-doctor').text(conflict.doctor);
-                $('#conflict-details').text(conflict.details);
-                $('#cancelAppointmentButton').off('click').on('click', function () {
-                    alert(`Appointment between ${conflict.patient} and ${conflict.doctor} has been canceled.`);
-                    $('#resolveConflictModal').modal('hide');
-                    conflictsTable.find(`.resolve-btn[data-index="${conflictIndex}"]`).closest('tr').remove();
+                const appointmentId = $(this).data('appointment-id');
+                const patientName = $(this).data('patient-name');
+                const doctorName = $(this).data('doctor-name');
+                const conflictSummary = $(this).data('conflict-summary');
+
+                $('#modal-conflict-patient').text(patientName || 'N/A');
+                $('#modal-conflict-doctor').text(doctorName || 'N/A');
+                $('#modal-appointment-id-display').text(appointmentId);
+                $('#modal-conflict-summary-details').text(conflictSummary || 'Details not available.');
+                $('#modal-appointment-id-to-cancel').val(appointmentId);
+            });
+
+            // Handle Confirm Cancellation button click in modal
+            $('#confirmCancelAppointmentButton').on('click', function () {
+                const appointmentIdToCancel = $('#modal-appointment-id-to-cancel').val();
+                // Find the row related to the conflict. This is tricky if one conflict has two buttons.
+                // Let's target the row by the conflict ID (if unique) or data attribute on the button.
+                const buttonThatOpenedModal = $('.resolve-btn[data-appointment-id="' + appointmentIdToCancel + '"]');
+                const conflictRow = buttonThatOpenedModal.closest('tr');
+
+
+                if (!appointmentIdToCancel) {
+                    showToast('Error', 'No appointment selected for cancellation.', 'error');
+                    return;
+                }
+
+                $('#confirmCancelAppointmentButton').prop('disabled', true).html('<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Cancelling...');
+
+
+                $.ajax({
+                    url: '@Url.Action("CancelAppointmentForConflict", "Admin")',
+                    type: 'POST',
+                    data: {
+                        appointmentId: appointmentIdToCancel
+                        // __RequestVerificationToken: requestVerificationToken // Handled by headers
+                    },
+                    headers: {
+                        "RequestVerificationToken": requestVerificationToken
+                    },
+                    success: function (response) {
+                        if (response.success) {
+                            showToast('Success', response.message, 'success');
+                            $('#resolveConflictModal').modal('hide');
+
+                            // More robust UI update: Remove the specific button, if both buttons on same row,
+                            // then remove row only if no more resolve buttons exist for that conflict.
+                            buttonThatOpenedModal.remove();
+                            if (conflictRow.find('.resolve-btn').length === 0) {
+                                conflictRow.fadeOut(500, function() { $(this).remove(); });
+                            }
+
+                            // Refresh dashboard or conflict count (simplistic update)
+                            var currentConflictCount = parseInt($('#active-conflicts-count').text()) || 0;
+                            if (currentConflictCount > 0) {
+                                // This needs to be smarter if one conflict has two appointments
+                                // For now, let's assume cancelling one appointment resolves one "displayable" conflict item or part of it.
+                                // A full refresh of the conflict section might be better:
+                                // $('#conflicts-content .card-body').load('@Url.Action("GetActiveConflictsPartial", "Admin")'); // Requires a new action
+                                $('#active-conflicts-count').text(Math.max(0, currentConflictCount - 1)); // Decrement, ensure not negative
+                            }
+
+                        } else {
+                            showToast('Error', response.message || 'Failed to cancel appointment.', 'error');
+                        }
+                    },
+                    error: function (xhr, status, error) {
+                        showToast('Error', 'An error occurred: ' + (xhr.responseJSON?.message || error), 'error');
+                        console.error("AJAX Error:", xhr.responseText);
+                    },
+                    complete: function() {
+                         $('#confirmCancelAppointmentButton').prop('disabled', false).html('<i class="bi bi-trash me-1"></i>Confirm Cancellation');
+                    }
                 });
             });
+
+            // Auto-hide alerts after a few seconds
+            window.setTimeout(function() {
+                $(".alert-dismissible").fadeTo(500, 0).slideUp(500, function(){
+                    $(this).remove();
+                });
+            }, 7000); // 7 seconds
+
         });
     </script>
-</body>
-</html>
+}
