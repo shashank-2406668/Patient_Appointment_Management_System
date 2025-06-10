@@ -138,6 +138,9 @@ namespace Patient_Appointment_Management_System.Controllers
         }
 
         // === DOCTOR PROFILE (REFACTORED) ===
+        // In: Controllers/DoctorController.cs
+
+        // REPLACE your entire [HttpGet] Profile() method with this one.
         [HttpGet]
         public async Task<IActionResult> Profile()
         {
@@ -146,6 +149,7 @@ namespace Patient_Appointment_Management_System.Controllers
                 TempData["ErrorMessage"] = "Please log in to view your profile.";
                 return RedirectToAction("DoctorLogin");
             }
+
             var doctorId = HttpContext.Session.GetInt32("DoctorId");
             if (doctorId == null)
             {
@@ -153,7 +157,9 @@ namespace Patient_Appointment_Management_System.Controllers
                 return RedirectToAction("DoctorLogin");
             }
 
+            // 1. Fetch the doctor data from the database via the service
             var doctor = await _doctorService.GetDoctorByIdAsync(doctorId.Value);
+
             if (doctor == null)
             {
                 HttpContext.Session.Clear();
@@ -161,8 +167,53 @@ namespace Patient_Appointment_Management_System.Controllers
                 return RedirectToAction("DoctorLogin");
             }
 
-            var vm = new DoctorProfileViewModel { /* ... mapping logic ... */ };
-            // ... The rest of the GET method is unchanged.
+            // 2. THE FIX: Map ONLY the properties that exist in your Doctor.cs model
+            var vm = new DoctorProfileViewModel
+            {
+                Id = doctor.DoctorId,
+                Name = doctor.Name,
+                Email = doctor.Email,
+                Specialization = doctor.Specialization
+                // We do NOT map Bio, YearsOfExperience, or Address because they don't exist on the 'doctor' object.
+            };
+
+            // 3. The phone number parsing logic remains the same and is correct.
+            if (!string.IsNullOrEmpty(doctor.Phone))
+            {
+                if (doctor.Phone.StartsWith("+"))
+                {
+                    // Simple heuristic to find country code (1-3 digits)
+                    int codeEndIndex = -1;
+                    for (int i = 1; i < 4 && i < doctor.Phone.Length; i++)
+                    {
+                        if (!char.IsDigit(doctor.Phone[i]))
+                        {
+                            break;
+                        }
+                        codeEndIndex = i;
+                    }
+
+                    if (codeEndIndex > 0)
+                    {
+                        vm.CountryCode = doctor.Phone.Substring(0, codeEndIndex + 1);
+                        vm.PhoneNumber = doctor.Phone.Substring(codeEndIndex + 1);
+                    }
+                    else
+                    {
+                        // Fallback if format is odd, e.g., just "+"
+                        vm.PhoneNumber = doctor.Phone;
+                    }
+                }
+                else
+                {
+                    vm.PhoneNumber = doctor.Phone; // No country code present
+                }
+            }
+
+            // 4. Pass the partially populated view model to the view
+            if (TempData["ProfileSuccessMessage"] != null) ViewBag.SuccessMessage = TempData["ProfileSuccessMessage"];
+            if (TempData["ProfileErrorMessage"] != null) ViewBag.ErrorMessage = TempData["ProfileErrorMessage"];
+
             return View("~/Views/Home/DoctorProfile.cshtml", vm);
         }
 
