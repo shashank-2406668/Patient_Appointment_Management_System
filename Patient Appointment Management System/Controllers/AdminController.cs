@@ -190,12 +190,14 @@ namespace Patient_Appointment_Management_System.Controllers
             }
         }
 
+        // Find the ManageUsers() action and replace it with this updated version.
         [HttpGet]
         public async Task<IActionResult> ManageUsers()
         {
             var authResult = RedirectToLoginIfNotAdmin(nameof(ManageUsers));
             if (authResult != null) return authResult;
 
+            // --- Get Admins (Existing Logic) ---
             var adminsFromDb = await _adminService.GetAllAdminsAsync();
             var adminDisplayViewModels = adminsFromDb.Select(a => new AdminDisplayViewModel
             {
@@ -205,10 +207,28 @@ namespace Patient_Appointment_Management_System.Controllers
                 Role = a.Role
             }).ToList();
 
-            var viewModel = new AdminManageUsersViewModel { Admins = adminDisplayViewModels };
+            // --- Get Doctors (New Logic) ---
+            var doctorsFromDb = await _doctorService.GetAllDoctorsAsync();
+            var doctorRowViewModels = doctorsFromDb.Select(d => new DoctorRowViewModel
+            {
+                DoctorId = d.DoctorId,
+                Name = d.Name,
+                Email = d.Email,
+                Phone = d.Phone,
+                Specialization = d.Specialization
+            }).ToList();
 
-            if (TempData.ContainsKey("AdminManagementMessage")) ViewBag.SuccessMessage = TempData["AdminManagementMessage"];
-            if (TempData.ContainsKey("AdminManagementError")) ViewBag.ErrorMessage = TempData["AdminManagementError"];
+
+            // --- Populate the single ViewModel ---
+            var viewModel = new AdminManageUsersViewModel
+            {
+                Admins = adminDisplayViewModels,
+                Doctors = doctorRowViewModels // Add the doctors list here
+            };
+
+            // Use a unified TempData key for all user management success messages
+            if (TempData["UserManagementMessage"] != null) ViewBag.SuccessMessage = TempData["UserManagementMessage"];
+            if (TempData["AdminManagementError"] != null) ViewBag.ErrorMessage = TempData["AdminManagementError"];
 
             return View("~/Views/Home/ManageUsers.cshtml", viewModel);
         }
@@ -305,6 +325,8 @@ namespace Patient_Appointment_Management_System.Controllers
             return View("~/Views/Home/ViewSystemLogs.cshtml", viewModel);
         }
 
+        // In: Controllers/AdminController.cs
+
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> AdminLogout()
@@ -319,15 +341,17 @@ namespace Patient_Appointment_Management_System.Controllers
                     EventType = "AdminLogout",
                     Message = $"Admin '{adminName}' (ID: {adminId}) logged out.",
                     Source = "AdminController",
-                    // --- QUALIFIED ENUM ---
                     Level = Patient_Appointment_Management_System.Models.LogLevel.Information.ToString(),
                     UserId = adminId
                 });
             }
 
             HttpContext.Session.Clear();
-            TempData["AdminSuccessMessage"] = "You have been successfully logged out.";
-            return RedirectToAction("AdminLogin");
+            // This message will now appear on the home page after redirection.
+            TempData["GlobalSuccessMessage"] = "You have been successfully logged out.";
+
+            // THE FIX: Redirect to the "Index" action of the "Home" controller.
+            return RedirectToAction("Index", "Home");
         }
 
         [HttpGet]
@@ -374,6 +398,65 @@ namespace Patient_Appointment_Management_System.Controllers
                 return RedirectToAction("AdminLogin");
             }
             return View("~/Views/Home/AdminForgotPassword.cshtml", model);
+        }
+
+
+
+        // Add these methods inside your AdminController class
+
+        [HttpGet]
+        public IActionResult AddDoctor()
+        {
+            var authResult = RedirectToLoginIfNotAdmin(nameof(AddDoctor));
+            if (authResult != null) return authResult;
+            return View("~/Views/Admin/AddDoctor.cshtml", new DoctorRegisterViewModel());
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> AddDoctor(DoctorRegisterViewModel model)
+        {
+            var authResult = RedirectToLoginIfNotAdmin();
+            if (authResult != null) return authResult;
+
+            if (ModelState.IsValid)
+            {
+                var existingDoctor = await _doctorService.GetDoctorByEmailAsync(model.Email);
+                if (existingDoctor != null)
+                {
+                    ModelState.AddModelError("Email", "A doctor with this email address already exists.");
+                    return View("~/Views/Admin/AddDoctor.cshtml", model);
+                }
+                var doctor = new Doctor
+                {
+                    Name = model.Name,
+                    Email = model.Email,
+                    Specialization = model.Specialization,
+                    Phone = $"{model.CountryCode}{model.PhoneNumber}",
+                };
+                bool result = await _doctorService.AddDoctorAsync(doctor, model.Password);
+                var currentAdminId = HttpContext.Session.GetInt32("AdminId")?.ToString() ?? "System";
+
+                if (result)
+                {
+                    await _systemLogService.LogEventAsync(new SystemLog
+                    {
+                        EventType = "DoctorCreated",
+                        Message = $"Doctor '{doctor.Name}' (Email: {doctor.Email}) created by Admin ID: {currentAdminId}.",
+                        Source = "AdminController",
+                        Level = Patient_Appointment_Management_System.Models.LogLevel.Information.ToString(),
+                        UserId = currentAdminId
+                    });
+                    // Use a consistent TempData key for all user management actions
+                    TempData["UserManagementMessage"] = $"Doctor '{doctor.Name}' added successfully.";
+                    return RedirectToAction("ManageUsers");
+                }
+                else
+                {
+                    ModelState.AddModelError(string.Empty, "An error occurred while adding the doctor.");
+                }
+            }
+            return View("~/Views/Admin/AddDoctor.cshtml", model);
         }
     }
 }

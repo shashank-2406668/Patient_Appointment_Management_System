@@ -13,5 +13,6 @@ namespace Patient_Appointment_Management_System.ViewModels
         {
             Admins = new List<AdminDisplayViewModel>();
         }
+        public List<DoctorRowViewModel> Doctors { get; set; } = new List<DoctorRowViewModel>();
     }
 }
