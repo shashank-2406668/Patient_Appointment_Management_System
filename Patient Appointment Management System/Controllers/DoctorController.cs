@@ -141,11 +141,32 @@ namespace Patient_Appointment_Management_System.Controllers
                 })
                 .ToListAsync();
 
+            // In Dashboard method, add this before creating the viewModel:
+            var notifications = await _context.Notifications
+                .Where(n => n.DoctorId == doctorId.Value)
+                .OrderByDescending(n => n.SentDate)
+                .Take(10)
+                .Select(n => new NotificationViewModel
+                {
+                    NotificationId = n.NotificationId,
+                    Message = n.Message,
+                    NotificationType = n.NotificationType,
+                    SentDate = n.SentDate,
+                    IsRead = n.IsRead,
+                    Url = n.Url
+                })
+                .ToListAsync();
+
+            var unreadCount = await _context.Notifications
+                .CountAsync(n => n.DoctorId == doctorId.Value && !n.IsRead);
+
+            // Update viewModel creation:
             var viewModel = new DoctorDashboardViewModel
             {
                 DoctorDisplayName = $"Dr. {doctor.Name}",
                 TodaysAppointments = todaysAppointments,
-                Notifications = new List<string> { "Review your schedule for today." } // Example notification
+                Notifications = notifications,
+                UnreadNotificationCount = unreadCount
             };
 
             if (TempData["SuccessMessage"] != null) ViewBag.SuccessMessage = TempData["SuccessMessage"];
@@ -246,7 +267,63 @@ namespace Patient_Appointment_Management_System.Controllers
             TempData["ProfileErrorMessage"] = "Please correct validation errors.";
             return View("~/Views/Home/DoctorProfile.cshtml", model);
         }
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> MarkNotificationAsRead(int notificationId)
+        {
+            if (!IsDoctorLoggedIn()) return Json(new { success = false });
 
+            var doctorId = HttpContext.Session.GetInt32("DoctorId");
+            var notification = await _context.Notifications
+                .FirstOrDefaultAsync(n => n.NotificationId == notificationId && n.DoctorId == doctorId);
+
+            if (notification != null)
+            {
+                notification.IsRead = true;
+                await _context.SaveChangesAsync();
+                return Json(new { success = true });
+            }
+
+            return Json(new { success = false });
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> MarkAllNotificationsAsRead()
+        {
+            if (!IsDoctorLoggedIn()) return Json(new { success = false });
+
+            var doctorId = HttpContext.Session.GetInt32("DoctorId");
+            var notifications = await _context.Notifications
+                .Where(n => n.DoctorId == doctorId && !n.IsRead)
+                .ToListAsync();
+
+            foreach (var notification in notifications)
+            {
+                notification.IsRead = true;
+            }
+
+            await _context.SaveChangesAsync();
+            return Json(new { success = true });
+        }
+
+        // Helper method for creating notifications
+        private async Task CreateNotificationAsync(int? patientId, int? doctorId, string message, string notificationType, string? url = null)
+        {
+            var notification = new Notification
+            {
+                PatientId = patientId,
+                DoctorId = doctorId,
+                Message = message,
+                NotificationType = notificationType,
+                SentDate = DateTime.Now,
+                IsRead = false,
+                Url = url
+            };
+
+            _context.Notifications.Add(notification);
+            await _context.SaveChangesAsync();
+        }
 
         // === AVAILABILITY ACTIONS ===
         [HttpGet]
@@ -481,13 +558,13 @@ namespace Patient_Appointment_Management_System.Controllers
                 })
                 .ToListAsync();
 
-            return View("~/Views/Home/DoctorViewAppointment.cshtml", allAppointments);
-        }
+                return View("~/Views/Home/DoctorViewAppointment.cshtml", allAppointments);
+            }
 
 
-        // === DOCTOR FORGOT PASSWORD ===
-        [HttpGet]
-        public IActionResult DoctorForgotPassword() => View("~/Views/Home/DoctorForgotPassword.cshtml", new DoctorForgotPasswordViewModel());
+            // === DOCTOR FORGOT PASSWORD ===
+            [HttpGet]
+            public IActionResult DoctorForgotPassword() => View("~/Views/Home/DoctorForgotPassword.cshtml", new DoctorForgotPasswordViewModel());
 
         [HttpPost]
         [ValidateAntiForgeryToken]
@@ -513,6 +590,90 @@ namespace Patient_Appointment_Management_System.Controllers
             _logger.LogInformation($"Doctor {doctorName ?? "Unknown"} logged out successfully.");
             TempData["DoctorLogoutMessage"] = "You have been successfully logged out.";
             return RedirectToAction("Index", "Home");
+
+
         }
+        // Add this method to your DoctorController class
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> CancelAppointment(int appointmentId)
+        {
+            if (!IsDoctorLoggedIn())
+            {
+                TempData["ErrorMessage"] = "You need to log in as a doctor to cancel appointments.";
+                return RedirectToAction("DoctorLogin");
+            }
+
+            var doctorId = HttpContext.Session.GetInt32("DoctorId");
+            if (doctorId == null)
+            {
+                TempData["ErrorMessage"] = "Session error. Please log in again.";
+                return RedirectToAction("DoctorLogin");
+            }
+
+            // Find the appointment
+            var appointment = await _context.Appointments
+                .Include(a => a.Patient)
+                .Include(a => a.BookedAvailabilitySlot)
+                .FirstOrDefaultAsync(a => a.AppointmentId == appointmentId && a.DoctorId == doctorId.Value);
+
+            if (appointment == null)
+            {
+                TempData["AvailabilityErrorMessage"] = "Appointment not found or you don't have permission to cancel it.";
+                return RedirectToAction("DoctorViewAppointment");
+            }
+
+            // Check if appointment is in the future
+            if (appointment.AppointmentDateTime < DateTime.Now)
+            {
+                TempData["AvailabilityErrorMessage"] = "Cannot cancel past appointments.";
+                return RedirectToAction("DoctorViewAppointment");
+            }
+
+            // Check if already cancelled
+            if (appointment.Status == "Cancelled")
+            {
+                TempData["AvailabilityErrorMessage"] = "This appointment is already cancelled.";
+                return RedirectToAction("DoctorViewAppointment");
+            }
+
+            try
+            {
+                // Update appointment status
+                appointment.Status = "Cancelled";
+
+                // If appointment had a booked availability slot, free it up
+                if (appointment.BookedAvailabilitySlot != null)
+                {
+                    appointment.BookedAvailabilitySlot.IsBooked = false;
+                    appointment.BookedAvailabilitySlot.BookedByAppointmentId = null;
+                }
+
+                // Create notification for patient
+                await CreateNotificationAsync(
+                    patientId: appointment.PatientId,
+                    doctorId: null,
+                    message: $"Your appointment with Dr. {HttpContext.Session.GetString("DoctorName")} on {appointment.AppointmentDateTime.ToString("MMM dd, yyyy at hh:mm tt")} has been cancelled by the doctor.",
+                    notificationType: "AppointmentCancelled",
+                    url: "/Patient/ViewAppointments"
+                );
+
+                await _context.SaveChangesAsync();
+
+                _logger.LogInformation($"Appointment {appointmentId} cancelled by Doctor {doctorId}");
+                TempData["AvailabilitySuccessMessage"] = "Appointment cancelled successfully.";
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error cancelling appointment {AppointmentId} for Doctor {DoctorId}", appointmentId, doctorId);
+                TempData["AvailabilityErrorMessage"] = "An error occurred while cancelling the appointment.";
+            }
+
+            return RedirectToAction("DoctorViewAppointment");
+        }
+
     }
+
+
 }
