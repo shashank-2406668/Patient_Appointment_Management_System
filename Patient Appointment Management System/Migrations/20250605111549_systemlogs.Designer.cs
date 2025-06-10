@@ -12,8 +12,8 @@ using Patient_Appointment_Management_System.Data;
 namespace Patient_Appointment_Management_System.Migrations
 {
     [DbContext(typeof(PatientAppointmentDbContext))]
-    [Migration("20250605092353_MakeSystemLogUserIdNullable")]
-    partial class MakeSystemLogUserIdNullable
+    [Migration("20250605111549_systemlogs")]
+    partial class systemlogs
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
