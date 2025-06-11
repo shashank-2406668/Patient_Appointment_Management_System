@@ -1,8 +1,9 @@
 ﻿@model Patient_Appointment_Management_System.ViewModels.DoctorProfileViewModel
 @{
-    Layout = null; // Self-contained page for now
+    Layout = null; // This page is self-contained
     ViewData["Title"] = "Doctor Profile";
 
+    // This list of country codes is used for the dropdown in the profile details form.
     var countryCodes = new List<SelectListItem>
     {
         new SelectListItem { Value = "+91", Text = "India (🇮🇳 +91)" },
@@ -10,7 +11,7 @@
         new SelectListItem { Value = "+44", Text = "United Kingdom (🇬🇧 +44)" },
         new SelectListItem { Value = "+81", Text = "Japan (🇯🇵 +81)" },
         new SelectListItem { Value = "+86", Text = "China (🇨🇳 +86)" },
-        new SelectListItem { Value = "", Text = "Other" } // An option for unlisted or manual entry
+        new SelectListItem { Value = "", Text = "Other" }
     };
 }
 
@@ -24,16 +25,15 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" />
     <style>
         body {
-            background-color: #f0f8ff; /* Light blue background */
+            background-color: #f0f8ff;
             font-family: 'Arial', sans-serif;
         }
 
         .navbar-custom {
-            background-color: #007bff; /* Primary blue */
+            background-color: #007bff;
         }
 
-            .navbar-custom .navbar-brand,
-            .navbar-custom .nav-link {
+            .navbar-custom .navbar-brand, .navbar-custom .nav-link {
                 color: white;
             }
 
@@ -43,29 +43,29 @@
 
         .profile-container {
             background-color: #fff;
-            padding: 30px; /* Increased padding */
+            padding: 30px;
             border-radius: 0.5rem;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15); /* Softer shadow */
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
             margin-top: 30px;
-            max-width: 700px; /* Slightly wider for better form layout */
+            max-width: 700px;
             margin-left: auto;
             margin-right: auto;
         }
 
-            .profile-container h2 {
+            .profile-container h2, .profile-container h3 {
                 margin-bottom: 25px;
-                color: #007bff; /* Consistent with navbar */
+                color: #007bff;
                 text-align: center;
             }
 
         .form-label {
-            font-weight: 500; /* Medium weight */
-            color: #495057; /* Darker gray for better readability */
+            font-weight: 500;
+            color: #495057;
         }
 
-        .form-control:disabled, .form-select:disabled {
+        .form-control:disabled, .form-select:disabled, .form-control[readonly] {
             background-color: #e9ecef;
-            opacity: 0.7; /* Slightly less opaque when disabled */
+            opacity: 0.7;
             cursor: not-allowed;
         }
 
@@ -74,17 +74,24 @@
             gap: 10px;
         }
 
-            .phone-group .form-select { /* Target select within phone-group */
-                width: auto; /* Allow select to size based on content */
-                min-width: 150px; /* Minimum width for country code dropdown */
+            /* ====================================================================== */
+            /*                            THE CSS FIX                                 */
+            /* ====================================================================== */
+            .phone-group .form-select {
+                /* This tells the dropdown NOT to shrink. It will take up as much space as it needs. */
+                flex-shrink: 0;
+                /* This gives the dropdown a specific width, making it smaller. */
+                width: 150px;
             }
 
-            .phone-group .form-control { /* Target input within phone-group */
+            .phone-group .form-control {
+                /* This tells the phone number input to grow and take up all the remaining space. */
                 flex-grow: 1;
             }
+        /* ====================================================================== */
 
-        .btn-action { /* Class for main action buttons */
-            min-width: 150px; /* Ensure buttons have a decent width */
+        .btn-action {
+            min-width: 150px;
         }
     </style>
 </head>
@@ -114,78 +121,79 @@
     </nav>
 
     <div class="container profile-container">
-        <h2><i class="bi bi-person-vcard me-2"></i>Doctor Profile</h2>
-        <hr class="mb-4" />
-
-        @if (ViewBag.SuccessMessage != null)
+        <!-- Success/Error Messages -->
+        @if (!string.IsNullOrEmpty(ViewBag.SuccessMessage))
         {
-            <div class="alert alert-success alert-dismissible fade show" role="alert">
-                @Html.Raw(ViewBag.SuccessMessage.Replace(Environment.NewLine, "<br />"))
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-            </div>
+            <div class="alert alert-success alert-dismissible fade show" role="alert">@Html.Raw(ViewBag.SuccessMessage.Replace(Environment.NewLine, "<br />"))<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
         }
-        @if (ViewBag.ErrorMessage != null)
+        @if (!string.IsNullOrEmpty(ViewBag.ErrorMessage))
         {
-            <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                @Html.Raw(ViewBag.ErrorMessage.Replace(Environment.NewLine, "<br />"))
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-            </div>
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">@Html.Raw(ViewBag.ErrorMessage.Replace(Environment.NewLine, "<br />"))<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
         }
 
-        <form asp-controller="Doctor" asp-action="Profile" method="post">
-            @Html.AntiForgeryToken()
-            <input type="hidden" asp-for="Id" /> @* Crucial for identifying the doctor on POST *@
-            <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+        <!-- Profile Details Form -->
+        <section id="profile-details">
+            <h2><i class="bi bi-person-vcard me-2"></i>Doctor Profile</h2>
+            <hr class="mb-4" />
+            <form asp-controller="Doctor" asp-action="Profile" method="post">
+                @Html.AntiForgeryToken()
+                <input type="hidden" asp-for="Id" />
+                <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
 
-            <fieldset id="profileFieldset" disabled>
-                @* Initially disabled *@
-                <div class="mb-3">
-                    <label asp-for="Name" class="form-label"></label>
-                    <input asp-for="Name" class="form-control" />
-                    <span asp-validation-for="Name" class="text-danger"></span>
-                </div>
-                <div class="mb-3">
-                    <label asp-for="Email" class="form-label"></label>
-                    <input asp-for="Email" class="form-control" readonly /> @* Email usually readonly *@
-                    <span asp-validation-for="Email" class="text-danger"></span>
-                </div>
-                <div class="mb-3">
-                    <label asp-for="Specialization" class="form-label"></label>
-                    <input asp-for="Specialization" class="form-control" />
-                    <span asp-validation-for="Specialization" class="text-danger"></span>
-                </div>
-                <div class="mb-3">
-                    <label class="form-label">Doctor ID:</label>
-                    <input type="text" class="form-control" value="@Model.Id" readonly /> @* Displaying the Model.Id as Doctor ID *@
-                </div>
-                <div class="mb-3">
-                    <label class="form-label">Phone Number</label>
-                    <div class="phone-group">
-                        <select asp-for="CountryCode" asp-items="countryCodes" class="form-select form-select-sm">
-                            <option value="">Select Code</option>
-                        </select>
-                        <input asp-for="PhoneNumber" type="tel" class="form-control form-control-sm" placeholder="10-digit Phone No" pattern="^\d{10}$" />
+                <fieldset id="profileFieldset" disabled>
+                    <div class="mb-3"><label asp-for="Name" class="form-label"></label><input asp-for="Name" class="form-control" /><span asp-validation-for="Name" class="text-danger"></span></div>
+                    <div class="mb-3"><label asp-for="Email" class="form-label"></label><input asp-for="Email" class="form-control" readonly /><span asp-validation-for="Email" class="text-danger"></span></div>
+                    <div class="mb-3"><label asp-for="Specialization" class="form-label"></label><input asp-for="Specialization" class="form-control" /><span asp-validation-for="Specialization" class="text-danger"></span></div>
+                    <div class="mb-3"><label class="form-label">Doctor ID:</label><input type="text" class="form-control" value="@Model.Id" readonly /></div>
+                    <div class="mb-3">
+                        <label class="form-label">Phone Number</label>
+                        <div class="phone-group">
+                            <select asp-for="CountryCode" asp-items="countryCodes" class="form-select"><option value="">Select Code</option></select>
+                            <input asp-for="PhoneNumber" type="tel" class="form-control" placeholder="10-digit Phone No" />
+                        </div>
+                        <span asp-validation-for="PhoneNumber" class="text-danger d-block"></span>
                     </div>
-                    <span asp-validation-for="CountryCode" class="text-danger"></span>
-                    <span asp-validation-for="PhoneNumber" class="text-danger d-block"></span> @* d-block for new line *@
-                </div>
-               
-            </fieldset>
+                </fieldset>
 
-            <div class="mt-4 d-flex justify-content-between">
-                <a asp-controller="Doctor" asp-action="Dashboard" class="btn btn-secondary btn-action">
-                    <i class="bi bi-arrow-left me-2"></i>Back to Dashboard
-                </a>
-                <div>
-                    <button type="button" class="btn btn-primary btn-action me-2" id="editProfileBtn">
-                        <i class="bi bi-pencil-square me-2"></i>Edit Profile
-                    </button>
-                    <button type="submit" class="btn btn-success btn-action" id="saveProfileBtn" style="display: none;">
-                        <i class="bi bi-save me-2"></i>Save Changes
-                    </button>
+                <div class="mt-4 d-flex justify-content-between">
+                    <a asp-controller="Doctor" asp-action="Dashboard" class="btn btn-secondary btn-action"><i class="bi bi-arrow-left me-2"></i>Back</a>
+                    <div>
+                        <button type="button" class="btn btn-primary btn-action me-2" id="editProfileBtn"><i class="bi bi-pencil-square me-2"></i>Edit Profile</button>
+                        <button type="submit" class="btn btn-success btn-action" id="saveProfileBtn" style="display: none;"><i class="bi bi-save me-2"></i>Save Changes</button>
+                    </div>
                 </div>
-            </div>
-        </form>
+            </form>
+        </section>
+
+        <hr class="my-5">
+
+        <!-- Change Password Form -->
+        <section id="change-password">
+            <h3><i class="bi bi-key-fill me-2"></i>Change Password</h3>
+            <form asp-controller="Doctor" asp-action="ChangePassword" method="post">
+                @Html.AntiForgeryToken()
+                <input type="hidden" asp-for="Id" />
+
+                <div class="mb-3">
+                    <label asp-for="ChangePassword.CurrentPassword" class="form-label"></label>
+                    <input asp-for="ChangePassword.CurrentPassword" type="password" class="form-control" required />
+                    <span asp-validation-for="ChangePassword.CurrentPassword" class="text-danger"></span>
+                </div>
+                <div class="mb-3">
+                    <label asp-for="ChangePassword.NewPassword" class="form-label"></label>
+                    <input asp-for="ChangePassword.NewPassword" type="password" class="form-control" required />
+                    <span asp-validation-for="ChangePassword.NewPassword" class="text-danger"></span>
+                </div>
+                <div class="mb-3">
+                    <label asp-for="ChangePassword.ConfirmPassword" class="form-label"></label>
+                    <input asp-for="ChangePassword.ConfirmPassword" type="password" class="form-control" required />
+                    <span asp-validation-for="ChangePassword.ConfirmPassword" class="text-danger"></span>
+                </div>
+                <div class="mt-4 text-end">
+                    <button type="submit" class="btn btn-warning btn-action"><i class="bi bi-shield-lock me-2"></i>Update Password</button>
+                </div>
+            </form>
+        </section>
     </div>
 
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
@@ -196,23 +204,15 @@
             const editBtn = $('#editProfileBtn');
             const saveBtn = $('#saveProfileBtn');
 
-            // Initial state: form is disabled by the <fieldset disabled> attribute.
-            // JavaScript will control enabling it.
-
             editBtn.click(function () {
-                fieldset.prop('disabled', false); // Enable form fields
-                $('#Email').prop('readonly', true); // Keep Email readonly if it should not be changed
-                // If Doctor ID (Model.Id) is displayed in an input, keep it readonly:
-                // $('input[value="@Model.Id"]').prop('readonly', true); // Or give it a specific ID
+                fieldset.prop('disabled', false);
+                $('#Email').prop('readonly', true);
+                $('input[value="@Model.Id"]').prop('readonly', true);
+
                 editBtn.hide();
                 saveBtn.show();
-                $('#Name').focus(); // Focus on the first editable field
+                $('#Name').focus();
             });
-
-            // The form submission is now handled by ASP.NET Core MVC.
-            // The saveProfileBtn is a type="submit" button within the <form>.
-            // Client-side validation for phone number pattern can still be useful for immediate feedback,
-            // but server-side validation in the ViewModel is the source of truth.
         });
     </script>
 </body>

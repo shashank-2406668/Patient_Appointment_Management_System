@@ -158,6 +158,7 @@ namespace Patient_Appointment_Management_System.Controllers
         // In: Controllers/DoctorController.cs
 
         // REPLACE your entire [HttpGet] Profile() method with this one.
+        // REPLACE your old [HttpGet] Profile() method with this one
         [HttpGet]
         public async Task<IActionResult> Profile()
         {
@@ -174,66 +175,54 @@ namespace Patient_Appointment_Management_System.Controllers
                 return RedirectToAction("DoctorLogin");
             }
 
-            // 1. Fetch the doctor data from the database via the service
             var doctor = await _doctorService.GetDoctorByIdAsync(doctorId.Value);
-
             if (doctor == null)
             {
                 HttpContext.Session.Clear();
-                TempData["ErrorMessage"] = "Your profile could not be found. It may have been removed.";
+                TempData["ErrorMessage"] = "Your profile could not be found.";
                 return RedirectToAction("DoctorLogin");
             }
 
-            // 2. THE FIX: Map ONLY the properties that exist in your Doctor.cs model
             var vm = new DoctorProfileViewModel
             {
                 Id = doctor.DoctorId,
                 Name = doctor.Name,
                 Email = doctor.Email,
-                Specialization = doctor.Specialization
-                // We do NOT map Bio, YearsOfExperience, or Address because they don't exist on the 'doctor' object.
+                Specialization = doctor.Specialization,
+                // The ChangePassword property is already initialized by the ViewModel's constructor
             };
 
-            // 3. The phone number parsing logic remains the same and is correct.
+            // --- ROBUST PHONE NUMBER SPLITTING LOGIC ---
             if (!string.IsNullOrEmpty(doctor.Phone))
             {
-                if (doctor.Phone.StartsWith("+"))
+                var countryCodes = new[] { "+91", "+1", "+44", "+81", "+86" }; // Must match codes in the view
+                bool codeFound = false;
+                foreach (var code in countryCodes)
                 {
-                    // Simple heuristic to find country code (1-3 digits)
-                    int codeEndIndex = -1;
-                    for (int i = 1; i < 4 && i < doctor.Phone.Length; i++)
+                    if (doctor.Phone.StartsWith(code))
                     {
-                        if (!char.IsDigit(doctor.Phone[i]))
-                        {
-                            break;
-                        }
-                        codeEndIndex = i;
-                    }
-
-                    if (codeEndIndex > 0)
-                    {
-                        vm.CountryCode = doctor.Phone.Substring(0, codeEndIndex + 1);
-                        vm.PhoneNumber = doctor.Phone.Substring(codeEndIndex + 1);
-                    }
-                    else
-                    {
-                        // Fallback if format is odd, e.g., just "+"
-                        vm.PhoneNumber = doctor.Phone;
+                        vm.CountryCode = code;
+                        vm.PhoneNumber = doctor.Phone.Substring(code.Length);
+                        codeFound = true;
+                        break;
                     }
                 }
-                else
+                if (!codeFound)
                 {
-                    vm.PhoneNumber = doctor.Phone; // No country code present
+                    // If the code is not in our list, just put the whole thing in the phone number field
+                    vm.PhoneNumber = doctor.Phone;
                 }
             }
+            // --- END OF PHONE NUMBER LOGIC ---
 
-            // 4. Pass the partially populated view model to the view
             if (TempData["ProfileSuccessMessage"] != null) ViewBag.SuccessMessage = TempData["ProfileSuccessMessage"];
             if (TempData["ProfileErrorMessage"] != null) ViewBag.ErrorMessage = TempData["ProfileErrorMessage"];
+            if (TempData["PasswordChangeSuccess"] != null) ViewBag.SuccessMessage = (ViewBag.SuccessMessage ?? "") + "<br/>" + TempData["PasswordChangeSuccess"];
+            if (TempData["PasswordChangeError"] != null) ViewBag.ErrorMessage = (ViewBag.ErrorMessage ?? "") + "<br/>" + TempData["PasswordChangeError"];
 
             return View("~/Views/Doctor/DoctorProfile.cshtml", vm);
         }
-
+        // REPLACE your old [HttpPost] Profile(DoctorProfileViewModel model) method with this one
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Profile(DoctorProfileViewModel model)
@@ -242,11 +231,11 @@ namespace Patient_Appointment_Management_System.Controllers
             var doctorId = HttpContext.Session.GetInt32("DoctorId");
             if (doctorId == null || model.Id != doctorId.Value)
             {
-                TempData["ProfileErrorMessage"] = "A session or authorization error occurred. Please try again.";
-                _logger.LogWarning("Profile update attempt mismatch. Session DoctorID: {SessionId}, Form DoctorID: {FormId}", doctorId, model.Id);
+                TempData["ProfileErrorMessage"] = "A session or authorization error occurred.";
                 return RedirectToAction("Profile");
             }
 
+            // We only validate the main profile fields here, not the password ones.
             if (ModelState.IsValid)
             {
                 var doctorToUpdate = await _doctorService.GetDoctorByIdAsync(model.Id);
@@ -258,23 +247,77 @@ namespace Patient_Appointment_Management_System.Controllers
 
                 doctorToUpdate.Name = model.Name;
                 doctorToUpdate.Specialization = model.Specialization;
+                // --- CORRECTED PHONE NUMBER COMBINING LOGIC ---
                 doctorToUpdate.Phone = (model.CountryCode ?? "") + (model.PhoneNumber ?? "");
 
                 var success = await _doctorService.UpdateDoctorProfileAsync(doctorToUpdate);
                 if (success)
                 {
                     HttpContext.Session.SetString("DoctorName", doctorToUpdate.Name);
-                    TempData["ProfileSuccessMessage"] = "Profile updated successfully!";
+                    TempData["ProfileSuccessMessage"] = "Profile details updated successfully!";
                 }
                 else
                 {
-                    TempData["ProfileErrorMessage"] = "An error occurred while saving your profile. Please try again.";
+                    TempData["ProfileErrorMessage"] = "An error occurred while saving your profile.";
                 }
                 return RedirectToAction("Profile");
             }
 
-            TempData["ProfileErrorMessage"] = "Please correct the validation errors below.";
+            TempData["ProfileErrorMessage"] = "Please correct the validation errors.";
             return View("~/Views/Doctor/DoctorProfile.cshtml", model);
+        }
+
+        // ADD THIS ENTIRE NEW METHOD TO DoctorController.cs
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ChangePassword(DoctorProfileViewModel model)
+        {
+            if (!IsDoctorLoggedIn()) return RedirectToAction("DoctorLogin");
+            var doctorId = HttpContext.Session.GetInt32("DoctorId");
+            if (doctorId == null)
+            {
+                TempData["ErrorMessage"] = "Session error. Please log in again.";
+                return RedirectToAction("DoctorLogin");
+            }
+
+            var passwordModel = model.ChangePassword;
+
+            // We manually check the ModelState for the nested ChangePassword object
+            if (string.IsNullOrEmpty(passwordModel.CurrentPassword) ||
+                string.IsNullOrEmpty(passwordModel.NewPassword) ||
+                passwordModel.NewPassword != passwordModel.ConfirmPassword)
+            {
+                TempData["PasswordChangeError"] = "Please fill all password fields correctly.";
+                return RedirectToAction("Profile");
+            }
+
+            if (passwordModel.NewPassword.Length < 8)
+            {
+                TempData["PasswordChangeError"] = "New password must be at least 8 characters long.";
+                return RedirectToAction("Profile");
+            }
+
+            var doctor = await _context.Doctors.FindAsync(doctorId.Value);
+            if (doctor == null)
+            {
+                TempData["PasswordChangeError"] = "Could not find your account.";
+                return RedirectToAction("Profile");
+            }
+
+            // Verify the current password
+            if (!PasswordHelper.VerifyPassword(passwordModel.CurrentPassword, doctor.PasswordHash))
+            {
+                TempData["PasswordChangeError"] = "Incorrect current password.";
+                return RedirectToAction("Profile");
+            }
+
+            // Hash and update the new password
+            doctor.PasswordHash = PasswordHelper.HashPassword(passwordModel.NewPassword);
+            _context.Doctors.Update(doctor);
+            await _context.SaveChangesAsync();
+
+            TempData["PasswordChangeSuccess"] = "Password changed successfully!";
+            return RedirectToAction("Profile");
         }
 
         // ... (the rest of your DoctorController methods)
