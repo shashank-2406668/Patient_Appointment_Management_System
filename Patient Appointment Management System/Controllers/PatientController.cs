@@ -44,7 +44,7 @@ namespace Patient_Appointment_Management_System.Controllers
         {
             // SUGGESTION: As noted before, organize views into subfolders.
             // For now, your original path is kept to prevent new errors.
-            return View("~/Views/Home/PatientRegister.cshtml", new PatientRegisterViewModel());
+            return View("~/Views/Patient/PatientRegister.cshtml", new PatientRegisterViewModel());
         }
 
         [HttpPost]
@@ -57,7 +57,7 @@ namespace Patient_Appointment_Management_System.Controllers
                 if (emailExists)
                 {
                     ModelState.AddModelError("Email", "This email address is already registered.");
-                    return View("~/Views/Home/PatientRegister.cshtml", model);
+                    return View("~/Views/Patient/PatientRegister.cshtml", model);
                 }
                 var patient = new Patient
                 {
@@ -87,7 +87,7 @@ namespace Patient_Appointment_Management_System.Controllers
             if (TempData["ErrorMessage"] != null) ViewBag.ErrorMessage = (ViewBag.ErrorMessage != null ? ViewBag.ErrorMessage + "<br/>" : "") + TempData["ErrorMessage"];
             if (TempData["ForgotPasswordMessage"] != null) ViewBag.InfoMessage = TempData["ForgotPasswordMessage"];
             if (TempData["GlobalSuccessMessage"] != null) ViewBag.SuccessMessage = (ViewBag.SuccessMessage != null ? ViewBag.SuccessMessage + "<br/>" : "") + TempData["GlobalSuccessMessage"];
-            return View("~/Views/Home/PatientLogin.cshtml", new PatientLoginViewModel());
+            return View("~/Views/Account/PatientLogin.cshtml", new PatientLoginViewModel());
         }
 
         [HttpPost]
@@ -114,7 +114,7 @@ namespace Patient_Appointment_Management_System.Controllers
                     ModelState.AddModelError(string.Empty, "Invalid email or password.");
                 }
             }
-            return View("~/Views/Home/PatientLogin.cshtml", model);
+            return View("~/Views/Account/PatientLogin.cshtml", model);
         }
 
         // === PATIENT DASHBOARD ===
@@ -211,7 +211,7 @@ namespace Patient_Appointment_Management_System.Controllers
             if (TempData["BookingErrorMessage"] != null) ViewBag.ErrorMessage = TempData["BookingErrorMessage"];
             if (TempData["ErrorMessage"] != null) ViewBag.ErrorMessage = (ViewBag.ErrorMessage != null ? ViewBag.ErrorMessage + "<br/>" : "") + TempData["ErrorMessage"];
 
-            return View("~/Views/Home/PatientDashboard.cshtml", viewModel);
+            return View("~/Views/Patient/PatientDashboard.cshtml", viewModel);
         }
 
 
@@ -267,7 +267,7 @@ namespace Patient_Appointment_Management_System.Controllers
             if (TempData["ProfileUpdateError"] != null) ViewBag.ErrorMessage = TempData["ProfileUpdateError"];
             // Password change messages are handled directly in the view by TempData
 
-            return View("~/Views/Home/PatientProfile.cshtml", patientProfileViewModel);
+            return View("~/Views/Patient/PatientProfile.cshtml", patientProfileViewModel);
         }
 
         [HttpPost]
@@ -333,7 +333,7 @@ namespace Patient_Appointment_Management_System.Controllers
             }
             TempData["ProfileUpdateError"] = "Failed to update profile. Please check the errors.";
             ViewData["ChangePasswordViewModel"] = new ChangePasswordViewModel(); // Ensure password form part is fresh if profile details fail
-            return View("~/Views/Home/PatientProfile.cshtml", model);
+            return View("~/Views/Patient/PatientProfile.cshtml", model);
         }
 
         [HttpPost]
@@ -397,7 +397,7 @@ namespace Patient_Appointment_Management_System.Controllers
                     ViewData["ChangePasswordViewModel"] = passwordModel; // Pass back the model with its current (incorrect) values
                     var mainProfileModel = await GetPatientProfileViewModelAsync(patientId.Value);
                     if (mainProfileModel == null) return RedirectToAction("PatientLogin"); // Should not happen
-                    return View("~/Views/Home/PatientProfile.cshtml", mainProfileModel);
+                    return View("~/Views/Patient/PatientProfile.cshtml", mainProfileModel);
                 }
                 _logger.LogInformation("ChangePassword: Current password verified SUCCESSFULLY.");
 
@@ -449,7 +449,7 @@ namespace Patient_Appointment_Management_System.Controllers
                 HttpContext.Session.Clear();
                 return RedirectToAction("PatientLogin");
             }
-            return View("~/Views/Home/PatientProfile.cshtml", profileViewModel);
+            return View("~/Views/Patient/PatientProfile.cshtml", profileViewModel);
         }
 
 
@@ -496,7 +496,7 @@ namespace Patient_Appointment_Management_System.Controllers
                 AppointmentDate = DateTime.Today.AddDays(1),
                 AvailableTimeSlots = new List<SelectListItem>()
             };
-            return View("~/Views/Home/BookAppointment.cshtml", viewModel);
+            return View("~/Views/Patient/BookAppointment.cshtml", viewModel);
         }
 
         [HttpGet]
@@ -568,7 +568,7 @@ namespace Patient_Appointment_Management_System.Controllers
                 _logger.LogWarning("BookAppointment POST - ModelState invalid for PatientID: {PatientIdValue}. Errors: {Errors}",
                     patientId.Value, string.Join("; ", ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage)));
                 await RepopulateBookAppointmentViewModelForPostErrorAsync(model);
-                return View("~/Views/Home/BookAppointment.cshtml", model);
+                return View("~/Views/Patient/BookAppointment.cshtml", model);
             }
             var chosenSlot = await _context.AvailabilitySlots
                 .Include(s => s.Doctor)
@@ -582,14 +582,14 @@ namespace Patient_Appointment_Management_System.Controllers
                     model.SelectedAvailabilitySlotId, model.DoctorId, model.AppointmentDate.ToShortDateString());
                 TempData["BookingErrorMessage"] = "The selected time slot is no longer available or is invalid. Please choose another slot.";
                 await RepopulateBookAppointmentViewModelForPostErrorAsync(model);
-                return View("~/Views/Home/BookAppointment.cshtml", model);
+                return View("~/Views/Patient/BookAppointment.cshtml", model);
             }
             if (chosenSlot.Date.Date == DateTime.Today && chosenSlot.StartTime <= DateTime.Now.TimeOfDay)
             {
                 _logger.LogWarning("BookAppointment POST - Chosen slot (ID: {SlotId}) for today has already passed.", model.SelectedAvailabilitySlotId);
                 TempData["BookingErrorMessage"] = "The selected time slot has already passed for today. Please select a future time.";
                 await RepopulateBookAppointmentViewModelForPostErrorAsync(model);
-                return View("~/Views/Home/BookAppointment.cshtml", model);
+                return View("~/Views/Patient/BookAppointment.cshtml", model);
             }
             DateTime newAppointmentStartTime = chosenSlot.Date.Date.Add(chosenSlot.StartTime);
             DateTime newAppointmentEndTime = chosenSlot.Date.Date.Add(chosenSlot.EndTime);
@@ -618,7 +618,7 @@ namespace Patient_Appointment_Management_System.Controllers
                 _logger.LogWarning("BookAppointment POST - PatientID {PatientIdValue} has a conflicting appointment for slot {SlotId}", patientId.Value, model.SelectedAvailabilitySlotId);
                 TempData["BookingErrorMessage"] = "You already have an overlapping appointment scheduled around this time.";
                 await RepopulateBookAppointmentViewModelForPostErrorAsync(model);
-                return View("~/Views/Home/BookAppointment.cshtml", model);
+                return View("~/Views/Patient/BookAppointment.cshtml", model);
             }
             try
             {
@@ -665,7 +665,7 @@ namespace Patient_Appointment_Management_System.Controllers
                 TempData["BookingErrorMessage"] = "An unexpected error occurred. Please try again.";
             }
             await RepopulateBookAppointmentViewModelForPostErrorAsync(model);
-            return View("~/Views/Home/BookAppointment.cshtml", model);
+            return View("~/Views/Patient/BookAppointment.cshtml", model);
         }
 
         private async Task RepopulateBookAppointmentViewModelForPostErrorAsync(BookAppointmentViewModel model)
@@ -709,7 +709,7 @@ namespace Patient_Appointment_Management_System.Controllers
         [HttpGet]
         public IActionResult PatientForgotPassword()
         {
-            return View("~/Views/Home/PatientForgotPassword.cshtml", new PatientForgotPasswordViewModel());
+            return View("~/Views/Account/PatientForgotPassword.cshtml", new PatientForgotPasswordViewModel());
         }
 
         // CONTINUING PatientController.cs ...
@@ -728,7 +728,7 @@ namespace Patient_Appointment_Management_System.Controllers
                 TempData["ForgotPasswordMessage"] = "If an account with that email address exists, a password reset link has been sent. Please check your inbox (and spam folder).";
                 return RedirectToAction("PatientLogin");
             }
-            return View("~/Views/Home/PatientForgotPassword.cshtml", model);
+            return View("~/Views/Account/PatientForgotPassword.cshtml", model);
         }
 
         // === CANCEL APPOINTMENT ===
@@ -870,7 +870,7 @@ namespace Patient_Appointment_Management_System.Controllers
                 Selected = d.DoctorId == appointment.DoctorId
             }).ToList();
 
-            return View("~/Views/Home/RescheduleAppointment.cshtml", viewModel);
+            return View("~/Views/Patient/RescheduleAppointment.cshtml", viewModel);
         }
 
         [HttpPost]
@@ -898,7 +898,7 @@ namespace Patient_Appointment_Management_System.Controllers
             if (!ModelState.IsValid)
             {
                 await RepopulateRescheduleViewModelForPostErrorAsync(model);
-                return View("~/Views/Home/RescheduleAppointment.cshtml", model);
+                return View("~/Views/Patient/RescheduleAppointment.cshtml", model);
             }
 
             try
@@ -931,14 +931,14 @@ namespace Patient_Appointment_Management_System.Controllers
                 {
                     TempData["BookingErrorMessage"] = "The selected time slot is no longer available. Please choose another slot.";
                     await RepopulateRescheduleViewModelForPostErrorAsync(model);
-                    return View("~/Views/Home/RescheduleAppointment.cshtml", model);
+                    return View("~/Views/Patient/RescheduleAppointment.cshtml", model);
                 }
 
                 if (newSlot.Date.Date == DateTime.Today && newSlot.StartTime <= DateTime.Now.TimeOfDay)
                 {
                     TempData["BookingErrorMessage"] = "The selected time slot has already passed. Please select a future time.";
                     await RepopulateRescheduleViewModelForPostErrorAsync(model);
-                    return View("~/Views/Home/RescheduleAppointment.cshtml", model);
+                    return View("~/Views/Patient/RescheduleAppointment.cshtml", model);
                 }
 
                 DateTime newAppointmentStartTime = newSlot.Date.Date.Add(newSlot.StartTime);
@@ -970,7 +970,7 @@ namespace Patient_Appointment_Management_System.Controllers
                 {
                     TempData["BookingErrorMessage"] = "You already have an overlapping appointment scheduled around this time.";
                     await RepopulateRescheduleViewModelForPostErrorAsync(model);
-                    return View("~/Views/Home/RescheduleAppointment.cshtml", model);
+                    return View("~/Views/Patient/RescheduleAppointment.cshtml", model);
                 }
 
                 if (appointment.BookedAvailabilitySlot != null)
@@ -1008,7 +1008,7 @@ namespace Patient_Appointment_Management_System.Controllers
                 _logger.LogError(ex, $"Error rescheduling appointment {model.AppointmentId} for patient {patientId}");
                 TempData["BookingErrorMessage"] = "An error occurred while rescheduling your appointment. Please try again.";
                 await RepopulateRescheduleViewModelForPostErrorAsync(model);
-                return View("~/Views/Home/RescheduleAppointment.cshtml", model);
+                return View("~/Views/Patient/RescheduleAppointment.cshtml", model);
             }
         }
 
