@@ -54,7 +54,7 @@ namespace Patient_Appointment_Management_System.Controllers
         public IActionResult AdminLogin()
         {
             if (IsAdminLoggedIn()) return RedirectToAction("AdminDashboard");
-            return View("~/Views/Home/AdminLogin.cshtml", new AdminLoginViewModel());
+            return View("~/Views/Account/AdminLogin.cshtml", new AdminLoginViewModel());
         }
 
         [HttpPost]
@@ -65,7 +65,7 @@ namespace Patient_Appointment_Management_System.Controllers
 
             if (!ModelState.IsValid)
             {
-                return View("~/Views/Home/AdminLogin.cshtml", model);
+                return View("~/Views/Account/AdminLogin.cshtml", model);
             }
 
             var admin = await _adminService.GetAdminByEmailAsync(model.Email);
@@ -100,7 +100,7 @@ namespace Patient_Appointment_Management_System.Controllers
                     Level = Patient_Appointment_Management_System.Models.LogLevel.Warning.ToString()
                 });
                 ModelState.AddModelError(string.Empty, "Invalid email or password.");
-                return View("~/Views/Home/AdminLogin.cshtml", model);
+                return View("~/Views/Account/AdminLogin.cshtml", model);
             }
         }
 
@@ -142,7 +142,7 @@ namespace Patient_Appointment_Management_System.Controllers
                 Specialization = d.Specialization,
             }).ToList();
 
-            return View("~/Views/Home/AdminDashboard.cshtml", dashboardViewModel);
+            return View("~/Views/Admin/AdminDashboard.cshtml", dashboardViewModel);
         }
 
         [HttpPost]
@@ -230,7 +230,7 @@ namespace Patient_Appointment_Management_System.Controllers
             if (TempData["UserManagementMessage"] != null) ViewBag.SuccessMessage = TempData["UserManagementMessage"];
             if (TempData["AdminManagementError"] != null) ViewBag.ErrorMessage = TempData["AdminManagementError"];
 
-            return View("~/Views/Home/ManageUsers.cshtml", viewModel);
+            return View("~/Views/Admin/ManageUsers.cshtml", viewModel);
         }
 
         [HttpGet]
@@ -238,7 +238,7 @@ namespace Patient_Appointment_Management_System.Controllers
         {
             var authResult = RedirectToLoginIfNotAdmin(nameof(AddAdmin));
             if (authResult != null) return authResult;
-            return View("~/Views/Home/AddAdmin.cshtml", new AdminAddViewModel());
+            return View("~/Views/Admin/AddAdmin.cshtml", new AdminAddViewModel());
         }
 
         [HttpPost]
@@ -255,7 +255,7 @@ namespace Patient_Appointment_Management_System.Controllers
                 if (existingAdmin != null)
                 {
                     ModelState.AddModelError("Email", "An admin with this email address already exists.");
-                    return View("~/Views/Home/AddAdmin.cshtml", model);
+                    return View("~/Views/Admin/AddAdmin.cshtml", model);
                 }
 
                 var admin = new Admin
@@ -295,7 +295,7 @@ namespace Patient_Appointment_Management_System.Controllers
                     ModelState.AddModelError(string.Empty, "An error occurred while adding the admin.");
                 }
             }
-            return View("~/Views/Home/AddAdmin.cshtml", model);
+            return View("~/Views/Admin/AddAdmin.cshtml", model);
         }
 
         // File: Controllers/AdminController.cs (ViewSystemLogs action)
@@ -322,7 +322,7 @@ namespace Patient_Appointment_Management_System.Controllers
             };
 
             ViewBag.LogsTitle = "System Event Logs"; // Can be set in the view as well
-            return View("~/Views/Home/ViewSystemLogs.cshtml", viewModel);
+            return View("~/Views/Admin/ViewSystemLogs.cshtml", viewModel);
         }
 
         // In: Controllers/AdminController.cs
@@ -358,7 +358,7 @@ namespace Patient_Appointment_Management_System.Controllers
         public IActionResult AdminForgotPassword()
         {
             if (IsAdminLoggedIn()) return RedirectToAction("AdminDashboard");
-            return View("~/Views/Home/AdminForgotPassword.cshtml", new AdminForgotPasswordViewModel());
+            return View("~/Views/Account/AdminForgotPassword.cshtml", new AdminForgotPasswordViewModel());
         }
 
         [HttpPost]
@@ -397,7 +397,7 @@ namespace Patient_Appointment_Management_System.Controllers
                 TempData["ForgotPasswordMessage"] = "If an account with that email address exists, a password reset link has been sent. Please check your inbox (and spam folder).";
                 return RedirectToAction("AdminLogin");
             }
-            return View("~/Views/Home/AdminForgotPassword.cshtml", model);
+            return View("~/Views/Account/AdminForgotPassword.cshtml", model);
         }
 
 

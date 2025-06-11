@@ -52,7 +52,7 @@ namespace Patient_Appointment_Management_System.Controllers
             if (TempData["GlobalSuccessMessage"] != null) ViewBag.SuccessMessage = (ViewBag.SuccessMessage != null ? ViewBag.SuccessMessage + "<br/>" : "") + TempData["GlobalSuccessMessage"];
             if (TempData["ErrorMessage"] != null) ViewBag.ErrorMessage = TempData["ErrorMessage"];
             if (TempData["ForgotPasswordMessage"] != null) ViewBag.InfoMessage = (ViewBag.InfoMessage != null ? ViewBag.InfoMessage + "<br/>" : "") + TempData["ForgotPasswordMessage"];
-            return View("~/Views/Home/DoctorLogin.cshtml", new DoctorLoginViewModel());
+            return View("~/Views/Account/DoctorLogin.cshtml", new DoctorLoginViewModel());
         }
 
         [HttpPost]
@@ -79,7 +79,7 @@ namespace Patient_Appointment_Management_System.Controllers
                     ModelState.AddModelError(string.Empty, "Invalid email or password.");
                 }
             }
-            return View("~/Views/Home/DoctorLogin.cshtml", model);
+            return View("~/Views/Account/DoctorLogin.cshtml", model);
         }
 
         private bool IsDoctorLoggedIn() => HttpContext.Session.GetString("DoctorLoggedIn") == "true" && HttpContext.Session.GetString("UserRole") == "Doctor";
@@ -134,7 +134,7 @@ namespace Patient_Appointment_Management_System.Controllers
             };
 
             if (TempData["SuccessMessage"] != null) ViewBag.SuccessMessage = TempData["SuccessMessage"];
-            return View("~/Views/Home/DoctorDashboard.cshtml", viewModel);
+            return View("~/Views/Doctor/DoctorDashboard.cshtml", viewModel);
         }
 
         // === DOCTOR PROFILE (REFACTORED) ===
@@ -214,7 +214,7 @@ namespace Patient_Appointment_Management_System.Controllers
             if (TempData["ProfileSuccessMessage"] != null) ViewBag.SuccessMessage = TempData["ProfileSuccessMessage"];
             if (TempData["ProfileErrorMessage"] != null) ViewBag.ErrorMessage = TempData["ProfileErrorMessage"];
 
-            return View("~/Views/Home/DoctorProfile.cshtml", vm);
+            return View("~/Views/Doctor/DoctorProfile.cshtml", vm);
         }
 
         [HttpPost]
@@ -257,7 +257,7 @@ namespace Patient_Appointment_Management_System.Controllers
             }
 
             TempData["ProfileErrorMessage"] = "Please correct the validation errors below.";
-            return View("~/Views/Home/DoctorProfile.cshtml", model);
+            return View("~/Views/Doctor/DoctorProfile.cshtml", model);
         }
 
         // ... (the rest of your DoctorController methods)
@@ -358,7 +358,7 @@ namespace Patient_Appointment_Management_System.Controllers
 
             if (TempData["AvailabilitySuccessMessage"] != null) ViewBag.SuccessMessage = TempData["AvailabilitySuccessMessage"];
             if (TempData["AvailabilityErrorMessage"] != null) ViewBag.ErrorMessage = TempData["AvailabilityErrorMessage"];
-            return View("~/Views/Home/DoctorManageAvailability.cshtml", viewModel);
+            return View("~/Views/Doctor/DoctorManageAvailability.cshtml", viewModel);
         }
 
         // File: Patient_Appointment_Management_System/Controllers/DoctorController.cs
@@ -469,7 +469,7 @@ namespace Patient_Appointment_Management_System.Controllers
                 .ToListAsync();
 
             model.ExistingSlots = existingSlotsFromDb;
-            return View("~/Views/Home/DoctorManageAvailability.cshtml", model);
+            return View("~/Views/Doctor/DoctorManageAvailability.cshtml", model);
         }
 
         // ... (other methods like DeleteAvailability, GET Availability, Dashboard, etc.) ...
@@ -552,13 +552,13 @@ namespace Patient_Appointment_Management_System.Controllers
                 })
                 .ToListAsync();
 
-                return View("~/Views/Home/DoctorViewAppointment.cshtml", allAppointments);
-            }
+            return View("~/Views/Doctor/DoctorViewAppointment.cshtml", allAppointments);
+        }
 
 
-            // === DOCTOR FORGOT PASSWORD ===
-            [HttpGet]
-            public IActionResult DoctorForgotPassword() => View("~/Views/Home/DoctorForgotPassword.cshtml", new DoctorForgotPasswordViewModel());
+        // === DOCTOR FORGOT PASSWORD ===
+        [HttpGet]
+        public IActionResult DoctorForgotPassword() => View("~/Views/Home/DoctorForgotPassword.cshtml", new DoctorForgotPasswordViewModel());
 
         [HttpPost]
         [ValidateAntiForgeryToken]
@@ -571,7 +571,7 @@ namespace Patient_Appointment_Management_System.Controllers
                 TempData["ForgotPasswordMessage"] = "If an account with that email address exists, a password reset link has been sent.";
                 return RedirectToAction("DoctorLogin");
             }
-            return View("~/Views/Home/DoctorForgotPassword.cshtml", model);
+            return View("~/Views/Account/DoctorForgotPassword.cshtml", model);
         }
 
         // === LOGOUT ===
