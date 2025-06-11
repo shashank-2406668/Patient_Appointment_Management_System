@@ -552,13 +552,13 @@ namespace Patient_Appointment_Management_System.Controllers
                 })
                 .ToListAsync();
 
-                return View("~/Views/Doctor/DoctorViewAppointment.cshtml", allAppointments);
+                return View("~/Views/Home/DoctorViewAppointment.cshtml", allAppointments);
             }
 
 
-            // === DOCTOR FORGOT PASSWORD ===
-            [HttpGet]
-            public IActionResult DoctorForgotPassword() => View("~/Views/Home/DoctorForgotPassword.cshtml", new DoctorForgotPasswordViewModel());
+        // === DOCTOR FORGOT PASSWORD ===
+        [HttpGet]
+        public IActionResult DoctorForgotPassword() => View("~/Views/Home/DoctorForgotPassword.cshtml", new DoctorForgotPasswordViewModel());
 
         [HttpPost]
         [ValidateAntiForgeryToken]

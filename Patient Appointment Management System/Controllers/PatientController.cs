@@ -75,7 +75,7 @@ namespace Patient_Appointment_Management_System.Controllers
                 return RedirectToAction("PatientLogin");
             }
             _logger.LogWarning("Patient registration failed due to invalid model state.");
-            return View("~/Views/Home/PatientRegister.cshtml", model);
+            return View("~/Views/Patient/PatientRegister.cshtml", model);
         }
 
         // === PATIENT LOGIN ===
