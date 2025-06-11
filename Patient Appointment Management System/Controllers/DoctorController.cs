@@ -85,6 +85,9 @@ namespace Patient_Appointment_Management_System.Controllers
         private bool IsDoctorLoggedIn() => HttpContext.Session.GetString("DoctorLoggedIn") == "true" && HttpContext.Session.GetString("UserRole") == "Doctor";
 
         // === DOCTOR DASHBOARD ===
+        // PASTE THIS ENTIRE METHOD INTO YOUR DoctorController.cs, REPLACING THE OLD ONE
+
+        // === DOCTOR DASHBOARD ===
         [HttpGet]
         public async Task<IActionResult> Dashboard()
         {
@@ -100,7 +103,6 @@ namespace Patient_Appointment_Management_System.Controllers
                 return RedirectToAction("DoctorLogin");
             }
 
-            // This action uses _context directly, which is fine for now.
             var doctor = await _doctorService.GetDoctorByIdAsync(doctorId.Value);
             if (doctor == null)
             {
@@ -109,19 +111,34 @@ namespace Patient_Appointment_Management_System.Controllers
                 return RedirectToAction("DoctorLogin");
             }
 
-            // The rest of the dashboard logic remains the same...
             var todaysAppointments = await _context.Appointments
                 .Include(a => a.Patient)
                 .Where(a => a.DoctorId == doctorId.Value && a.AppointmentDateTime.Date == DateTime.Today && (a.Status == "Scheduled" || a.Status == "Confirmed"))
                 .OrderBy(a => a.AppointmentDateTime)
-                .Select(a => new AppointmentSummaryViewModel { /* ... fields ... */ })
+                .Select(a => new AppointmentSummaryViewModel
+                {
+                    Id = a.AppointmentId,
+                    AppointmentDateTime = a.AppointmentDateTime,
+                    PatientName = a.Patient.Name,
+                    Status = a.Status
+                })
                 .ToListAsync();
 
+            // --- THIS IS THE CORRECTED SECTION ---
             var notifications = await _context.Notifications
                 .Where(n => n.DoctorId == doctorId.Value)
                 .OrderByDescending(n => n.SentDate).Take(10)
-                .Select(n => new NotificationViewModel { /* ... fields ... */ })
+                .Select(n => new NotificationViewModel
+                {
+                    NotificationId = n.NotificationId,
+                    Message = n.Message,
+                    NotificationType = n.NotificationType,
+                    SentDate = n.SentDate,
+                    IsRead = n.IsRead,
+                    Url = n.Url
+                }) // THE FIX: Fields are now mapped from the database entity (n)
                 .ToListAsync();
+            // --- END OF CORRECTION ---
 
             var unreadCount = await _context.Notifications.CountAsync(n => n.DoctorId == doctorId.Value && !n.IsRead);
 
@@ -129,7 +146,7 @@ namespace Patient_Appointment_Management_System.Controllers
             {
                 DoctorDisplayName = $"Dr. {doctor.Name}",
                 TodaysAppointments = todaysAppointments,
-                Notifications = notifications,
+                Notifications = notifications, // This list now contains actual data
                 UnreadNotificationCount = unreadCount
             };
 
@@ -552,13 +569,13 @@ namespace Patient_Appointment_Management_System.Controllers
                 })
                 .ToListAsync();
 
-                return View("~/Views/Home/DoctorViewAppointment.cshtml", allAppointments);
+                return View("~/Views/Doctor/DoctorViewAppointment.cshtml", allAppointments);
             }
 
 
         // === DOCTOR FORGOT PASSWORD ===
         [HttpGet]
-        public IActionResult DoctorForgotPassword() => View("~/Views/Home/DoctorForgotPassword.cshtml", new DoctorForgotPasswordViewModel());
+        public IActionResult DoctorForgotPassword() => View("~/Views/Account/DoctorForgotPassword.cshtml", new DoctorForgotPasswordViewModel());
 
         [HttpPost]
         [ValidateAntiForgeryToken]
