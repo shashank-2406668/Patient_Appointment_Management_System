@@ -5,71 +5,58 @@
 }
 
 <div class="container-fluid mt-4">
-    <!-- START: Updated Header with Buttons -->
+    <!-- Header and Messages (Unchanged) -->
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h1 class="h3 mb-0 text-gray-800">@ViewData["Title"]</h1>
-        <div class="btn-group" role="group" aria-label="User management actions">
-            <a asp-action="AddDoctor" asp-controller="Admin" class="btn btn-success shadow-sm">
-                <i class="fas fa-user-md fa-sm text-white-50"></i> Add New Doctor
-            </a>
-            @* You can uncomment this later when you implement Add Patient functionality
-            <a asp-action="AddPatient" asp-controller="Admin" class="btn btn-info shadow-sm">
-                <i class="fas fa-user-plus fa-sm text-white-50"></i> Add New Patient
-            </a>
-            *@
-            <a asp-action="AddAdmin" asp-controller="Admin" class="btn btn-primary shadow-sm">
-                <i class="fas fa-user-shield fa-sm text-white-50"></i> Add New Admin
-            </a>
+        <div class="btn-group" role="group">
+            <a asp-action="AddDoctor" asp-controller="Admin" class="btn btn-success shadow-sm"><i class="fas fa-user-md fa-sm"></i> Add Doctor</a>
+            <a asp-action="AddAdmin" asp-controller="Admin" class="btn btn-primary shadow-sm"><i class="fas fa-user-shield fa-sm"></i> Add Admin</a>
         </div>
     </div>
-    <!-- END: Updated Header with Buttons -->
-    <!-- START: Unified TempData Message Check -->
     @if (TempData["UserManagementMessage"] != null)
     {
-        <div class="alert alert-success alert-dismissible fade show" role="alert">
-            @TempData["UserManagementMessage"]
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
+        <div class="alert alert-success alert-dismissible fade show" role="alert">@TempData["UserManagementMessage"]<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
     }
-    @if (TempData["AdminManagementError"] != null)
+    @if (TempData["UserManagementError"] != null)
     {
-        <div class="alert alert-danger alert-dismissible fade show" role="alert">
-            @TempData["AdminManagementError"]
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">@TempData["UserManagementError"]<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
     }
-    <!-- END: Unified TempData Message Check -->
-    <!-- START: Doctors List Card (replaces the placeholder) -->
+
+    <!-- Patients List Card with Actions -->
     <div class="card shadow mb-4">
-        <div class="card-header py-3">
-            <h6 class="m-0 font-weight-bold text-success">Doctors List</h6>
-        </div>
+        <div class="card-header py-3"><h6 class="m-0 font-weight-bold text-info">Patients List</h6></div>
         <div class="card-body">
-            @if (Model.Doctors != null && Model.Doctors.Any())
+            @if (Model.Patients.Any())
             {
                 <div class="table-responsive">
-                    <table class="table table-bordered table-striped table-hover" id="doctorsTable" width="100%" cellspacing="0">
+                    <table class="table table-bordered table-striped" id="patientsTable">
                         <thead>
                             <tr>
                                 <th>ID</th>
                                 <th>Name</th>
                                 <th>Email</th>
                                 <th>Phone</th>
-                                <th>Specialization</th>
                                 <th class="text-center">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach (var doctor in Model.Doctors)
+                            @foreach (var patient in Model.Patients)
                             {
                                 <tr>
-                                    <td>@doctor.DoctorId</td>
-                                    <td>@Html.DisplayFor(modelItem => doctor.Name)</td>
-                                    <td>@Html.DisplayFor(modelItem => doctor.Email)</td>
-                                    <td>@Html.DisplayFor(modelItem => doctor.Phone)</td>
-                                    <td>@Html.DisplayFor(modelItem => doctor.Specialization)</td>
+                                    <td>@patient.PatientId</td>
+                                    <td>@patient.Name</td>
+                                    <td>@patient.Email</td>
+                                    <td>@patient.Phone</td>
                                     <td class="text-center">
-                                        <span class="text-muted">(Edit/Delete to be added)</span>
+                                        <a asp-action="EditPatient" asp-route-id="@patient.PatientId" class="btn btn-sm btn-warning"><i class="fas fa-edit"></i> Edit</a>
+                                        <button type="button" class="btn btn-sm btn-danger delete-btn"
+                                                data-bs-toggle="modal" data-bs-target="#deleteModal"
+                                                data-user-id="@patient.PatientId"
+                                                data-user-name="@patient.Name"
+                                                data-user-type="Patient"
+                                                data-form-action="@Url.Action("DeletePatient", "Admin")">
+                                            <i class="fas fa-trash"></i> Delete
+                                        </button>
                                     </td>
                                 </tr>
                             }
@@ -79,23 +66,68 @@
             }
             else
             {
-                <div class="alert alert-info" role="alert">
-                    No doctors found in the system. You can add one using the "Add New Doctor" button above.
-                </div>
+                <div class="alert alert-info">No patients found.</div>
             }
         </div>
     </div>
-    <!-- END: Doctors List Card -->
-    <!-- Administrators List Card (Unchanged) -->
+
+    <!-- Doctors List Card with Actions -->
     <div class="card shadow mb-4">
-        <div class="card-header py-3">
-            <h6 class="m-0 font-weight-bold text-primary">Administrators List</h6>
-        </div>
+        <div class="card-header py-3"><h6 class="m-0 font-weight-bold text-success">Doctors List</h6></div>
         <div class="card-body">
-            @if (Model.Admins != null && Model.Admins.Any())
+            @if (Model.Doctors.Any())
             {
                 <div class="table-responsive">
-                    <table class="table table-bordered table-striped table-hover" id="adminsTable" width="100%" cellspacing="0">
+                    <table class="table table-bordered table-striped" id="doctorsTable">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Name</th>
+                                <th>Email</th>
+                                <th>Specialization</th>
+                                <th class="text-center">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var doctor in Model.Doctors)
+                            {
+                                <tr>
+                                    <td>@doctor.DoctorId</td>
+                                    <td>@doctor.Name</td>
+                                    <td>@doctor.Email</td>
+                                    <td>@doctor.Specialization</td>
+                                    <td class="text-center">
+                                        <a asp-action="EditDoctor" asp-route-id="@doctor.DoctorId" class="btn btn-sm btn-warning"><i class="fas fa-edit"></i> Edit</a>
+                                        <button type="button" class="btn btn-sm btn-danger delete-btn"
+                                                data-bs-toggle="modal" data-bs-target="#deleteModal"
+                                                data-user-id="@doctor.DoctorId"
+                                                data-user-name="@doctor.Name"
+                                                data-user-type="Doctor"
+                                                data-form-action="@Url.Action("DeleteDoctor", "Admin")">
+                                            <i class="fas fa-trash"></i> Delete
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+            else
+            {
+                <div class="alert alert-info">No doctors found.</div>
+            }
+        </div>
+    </div>
+
+    <!-- Admins List Card with Actions -->
+    <div class="card shadow mb-4">
+        <div class="card-header py-3"><h6 class="m-0 font-weight-bold text-primary">Administrators List</h6></div>
+        <div class="card-body">
+            @if (Model.Admins.Any())
+            {
+                <div class="table-responsive">
+                    <table class="table table-bordered table-striped" id="adminsTable">
                         <thead>
                             <tr>
                                 <th>ID</th>
@@ -110,11 +142,19 @@
                             {
                                 <tr>
                                     <td>@admin.AdminId</td>
-                                    <td>@Html.DisplayFor(modelItem => admin.Name)</td>
-                                    <td>@Html.DisplayFor(modelItem => admin.Email)</td>
-                                    <td>@Html.DisplayFor(modelItem => admin.Role)</td>
+                                    <td>@admin.Name</td>
+                                    <td>@admin.Email</td>
+                                    <td>@admin.Role</td>
                                     <td class="text-center">
-                                        <span class="text-muted">(Edit/Delete to be added)</span>
+                                        <a asp-action="EditAdmin" asp-route-id="@admin.AdminId" class="btn btn-sm btn-warning"><i class="fas fa-edit"></i> Edit</a>
+                                        <button type="button" class="btn btn-sm btn-danger delete-btn"
+                                                data-bs-toggle="modal" data-bs-target="#deleteModal"
+                                                data-user-id="@admin.AdminId"
+                                                data-user-name="@admin.Name"
+                                                data-user-type="Admin"
+                                                data-form-action="@Url.Action("DeleteAdmin", "Admin")">
+                                            <i class="fas fa-trash"></i> Delete
+                                        </button>
                                     </td>
                                 </tr>
                             }
@@ -124,25 +164,69 @@
             }
             else
             {
-                <div class="alert alert-info" role="alert">
-                    No administrators found in the system. You can add one using the "Add New Admin" button above.
-                </div>
+                <div class="alert alert-info">No administrators found.</div>
             }
         </div>
     </div>
-
 </div>
 
+<!-- ========================================================== -->
+<!--            *** REUSABLE DELETE CONFIRMATION MODAL ***      -->
+<!-- ========================================================== -->
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteModalLabel">Confirm Deletion</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="deleteModalBody">
+                <!-- Message will be set by JavaScript -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <form id="deleteForm" method="post">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" id="deleteUserId" name="id" />
+                    <button type="submit" class="btn btn-danger">Delete</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+
 @section Scripts {
-    @{
-        await Html.RenderPartialAsync("_ValidationScriptsPartial");
-    }
-    @* If you use DataTables, you can initialize it for the new doctors table as well *@
     <script>
-        // Optional: If you use DataTables, initialize it for both tables
-        // $(document).ready(function () {
-        //     $('#adminsTable').DataTable();
-        //     $('#doctorsTable').DataTable();
-        // });
+        // =================================================================
+        //  *** REUSABLE JAVASCRIPT FOR THE DELETE CONFIRMATION MODAL ***
+        // =================================================================
+        document.addEventListener('DOMContentLoaded', function () {
+            var deleteModal = document.getElementById('deleteModal');
+            deleteModal.addEventListener('show.bs.modal', function (event) {
+                // Button that triggered the modal
+                var button = event.relatedTarget;
+
+                // Extract info from data-* attributes
+                var userId = button.getAttribute('data-user-id');
+                var userName = button.getAttribute('data-user-name');
+                var userType = button.getAttribute('data-user-type');
+                var formAction = button.getAttribute('data-form-action');
+
+                // Update the modal's content
+                var modalBody = deleteModal.querySelector('#deleteModalBody');
+                var modalTitle = deleteModal.querySelector('#deleteModalLabel');
+
+                modalTitle.textContent = 'Delete ' + userType;
+                modalBody.textContent = 'Are you sure you want to delete ' + userType + ' "' + userName + '" (ID: ' + userId + ')? This action cannot be undone.';
+
+                // Update the form
+                var deleteForm = deleteModal.querySelector('#deleteForm');
+                var deleteInput = deleteModal.querySelector('#deleteUserId');
+
+                deleteForm.action = formAction;
+                deleteInput.value = userId;
+            });
+        });
     </script>
 }

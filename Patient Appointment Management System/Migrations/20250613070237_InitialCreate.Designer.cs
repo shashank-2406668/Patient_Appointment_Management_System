@@ -12,8 +12,8 @@ using Patient_Appointment_Management_System.Data;
 namespace Patient_Appointment_Management_System.Migrations
 {
     [DbContext(typeof(PatientAppointmentDbContext))]
-    [Migration("20250613032130_db")]
-    partial class db
+    [Migration("20250613070237_InitialCreate")]
+    partial class InitialCreate
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -98,7 +98,7 @@ namespace Patient_Appointment_Management_System.Migrations
 
                     b.HasIndex("PatientId");
 
-                    b.ToTable("Appointments", (string)null);
+                    b.ToTable("Appointments");
                 });
 
             modelBuilder.Entity("Patient_Appointment_Management_System.Models.AvailabilitySlot", b =>
@@ -113,7 +113,7 @@ namespace Patient_Appointment_Management_System.Migrations
                         .HasColumnType("int");
 
                     b.Property<DateTime>("Date")
-                        .HasColumnType("date");
+                        .HasColumnType("datetime2");
 
                     b.Property<int>("DoctorId")
                         .HasColumnType("int");
@@ -122,9 +122,7 @@ namespace Patient_Appointment_Management_System.Migrations
                         .HasColumnType("time");
 
                     b.Property<bool>("IsBooked")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bit")
-                        .HasDefaultValue(false);
+                        .HasColumnType("bit");
 
                     b.Property<TimeSpan>("StartTime")
                         .HasColumnType("time");
@@ -190,9 +188,7 @@ namespace Patient_Appointment_Management_System.Migrations
                         .HasColumnType("int");
 
                     b.Property<bool>("IsRead")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bit")
-                        .HasDefaultValue(false);
+                        .HasColumnType("bit");
 
                     b.Property<string>("Message")
                         .IsRequired()
@@ -318,7 +314,7 @@ namespace Patient_Appointment_Management_System.Migrations
                     b.HasOne("Patient_Appointment_Management_System.Models.Patient", "Patient")
                         .WithMany("Appointments")
                         .HasForeignKey("PatientId")
-                        .OnDelete(DeleteBehavior.Restrict)
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.Navigation("BookedAvailabilitySlot");

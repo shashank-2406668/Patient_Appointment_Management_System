@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace Patient_Appointment_Management_System.Migrations
 {
     /// <inheritdoc />
-    public partial class db : Migration
+    public partial class InitialCreate : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -87,10 +87,10 @@ namespace Patient_Appointment_Management_System.Migrations
                     AvailabilitySlotId = table.Column<int>(type: "int", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
                     DoctorId = table.Column<int>(type: "int", nullable: false),
-                    Date = table.Column<DateTime>(type: "date", nullable: false),
+                    Date = table.Column<DateTime>(type: "datetime2", nullable: false),
                     StartTime = table.Column<TimeSpan>(type: "time", nullable: false),
                     EndTime = table.Column<TimeSpan>(type: "time", nullable: false),
-                    IsBooked = table.Column<bool>(type: "bit", nullable: false, defaultValue: false),
+                    IsBooked = table.Column<bool>(type: "bit", nullable: false),
                     BookedByAppointmentId = table.Column<int>(type: "int", nullable: true)
                 },
                 constraints: table =>
@@ -116,7 +116,7 @@ namespace Patient_Appointment_Management_System.Migrations
                     Message = table.Column<string>(type: "nvarchar(max)", nullable: false),
                     NotificationType = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false),
                     SentDate = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    IsRead = table.Column<bool>(type: "bit", nullable: false, defaultValue: false),
+                    IsRead = table.Column<bool>(type: "bit", nullable: false),
                     Url = table.Column<string>(type: "nvarchar(255)", maxLength: 255, nullable: true)
                 },
                 constraints: table =>
@@ -175,7 +175,7 @@ namespace Patient_Appointment_Management_System.Migrations
                         column: x => x.PatientId,
                         principalTable: "Patients",
                         principalColumn: "PatientId",
-                        onDelete: ReferentialAction.Restrict);
+                        onDelete: ReferentialAction.Cascade);
                 });
 
             migrationBuilder.CreateIndex(

@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using System;
 using System.Linq;
+using Microsoft.EntityFrameworkCore;
 // using Microsoft.Extensions.Logging; // If this was uncommented, it would also bring Microsoft.Extensions.Logging.LogLevel
 
 namespace Patient_Appointment_Management_System.Controllers
@@ -191,13 +192,15 @@ namespace Patient_Appointment_Management_System.Controllers
         }
 
         // Find the ManageUsers() action and replace it with this updated version.
+        // In: Controllers/AdminController.cs
+
         [HttpGet]
         public async Task<IActionResult> ManageUsers()
         {
             var authResult = RedirectToLoginIfNotAdmin(nameof(ManageUsers));
             if (authResult != null) return authResult;
 
-            // --- Get Admins (Existing Logic) ---
+            // Get Admins (Existing Logic)
             var adminsFromDb = await _adminService.GetAllAdminsAsync();
             var adminDisplayViewModels = adminsFromDb.Select(a => new AdminDisplayViewModel
             {
@@ -207,7 +210,7 @@ namespace Patient_Appointment_Management_System.Controllers
                 Role = a.Role
             }).ToList();
 
-            // --- Get Doctors (New Logic) ---
+            // Get Doctors (Existing Logic)
             var doctorsFromDb = await _doctorService.GetAllDoctorsAsync();
             var doctorRowViewModels = doctorsFromDb.Select(d => new DoctorRowViewModel
             {
@@ -218,15 +221,29 @@ namespace Patient_Appointment_Management_System.Controllers
                 Specialization = d.Specialization
             }).ToList();
 
+            // ==========================================================
+            //          *** ADD THIS NEW LOGIC TO GET PATIENTS ***
+            // ==========================================================
+            // Assuming you have a GetAllPatientsAsync() method in your IPatientService
+            var patientsFromDb = await _patientService.GetAllPatientsAsync();
+            var patientRowViewModels = patientsFromDb.Select(p => new PatientRowViewModel
+            {
+                PatientId = p.PatientId,
+                Name = p.Name,
+                Email = p.Email,
+                Phone = p.Phone
+            }).ToList();
+            // ==========================================================
 
-            // --- Populate the single ViewModel ---
+
+            // Populate the single ViewModel with all three lists
             var viewModel = new AdminManageUsersViewModel
             {
                 Admins = adminDisplayViewModels,
-                Doctors = doctorRowViewModels // Add the doctors list here
+                Doctors = doctorRowViewModels,
+                Patients = patientRowViewModels // Add the new patients list here
             };
 
-            // Use a unified TempData key for all user management success messages
             if (TempData["UserManagementMessage"] != null) ViewBag.SuccessMessage = TempData["UserManagementMessage"];
             if (TempData["AdminManagementError"] != null) ViewBag.ErrorMessage = TempData["AdminManagementError"];
 
@@ -458,5 +475,198 @@ namespace Patient_Appointment_Management_System.Controllers
             }
             return View("~/Views/Admin/AddDoctor.cshtml", model);
         }
+
+        // --- DELETE ACTIONS ---
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> DeletePatient(int id)
+        {
+            var success = await _patientService.DeletePatientAsync(id);
+            if (success)
+            {
+                TempData["UserManagementMessage"] = $"Patient with ID {id} has been deleted.";
+            }
+            else
+            {
+                TempData["UserManagementError"] = "Error: Could not delete the patient.";
+            }
+            return RedirectToAction("ManageUsers");
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> DeleteDoctor(int id)
+        {
+            var success = await _doctorService.DeleteDoctorAsync(id);
+            if (success)
+            {
+                TempData["UserManagementMessage"] = $"Doctor with ID {id} has been deleted.";
+            }
+            else
+            {
+                TempData["UserManagementError"] = "Error: Could not delete the doctor.";
+            }
+            return RedirectToAction("ManageUsers");
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> DeleteAdmin(int id)
+        {
+            var currentAdminId = HttpContext.Session.GetInt32("AdminId");
+            if (id == currentAdminId)
+            {
+                TempData["UserManagementError"] = "Error: You cannot delete your own account.";
+                return RedirectToAction("ManageUsers");
+            }
+
+            // Add more safety checks if needed (e.g., check if it's the last admin)
+
+            var success = await _adminService.DeleteAdminAsync(id);
+            if (success)
+            {
+                TempData["UserManagementMessage"] = $"Admin with ID {id} has been deleted.";
+            }
+            else
+            {
+                TempData["UserManagementError"] = "Error: Could not delete the admin.";
+            }
+            return RedirectToAction("ManageUsers");
+        }
+
+
+        // --- EDIT ACTIONS (PATIENT) ---
+
+        [HttpGet]
+        public async Task<IActionResult> EditPatient(int id)
+        {
+            var patient = await _patientService.GetPatientByIdAsync(id);
+            if (patient == null) return NotFound();
+
+            // Here, you would map to a specific EditPatientViewModel if needed.
+            // For simplicity, we are passing the model directly.
+            return View(patient);
+        }
+        // In: Controllers/AdminController.cs
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> EditPatient(int id, Patient patient)
+        {
+            if (id != patient.PatientId)
+            {
+                return NotFound();
+            }
+
+            if (ModelState.IsValid)
+            {
+                try
+                {
+                    // Get the original patient from DB to preserve the password hash
+                    var originalPatient = await _patientService.GetPatientByIdAsync(id);
+                    if (originalPatient == null)
+                    {
+                        return NotFound();
+                    }
+
+                    // Copy over the new values, but keep the old password
+                    originalPatient.Name = patient.Name;
+                    originalPatient.Email = patient.Email;
+                    originalPatient.Phone = patient.Phone;
+                    originalPatient.Address = patient.Address; // Add other fields as needed
+                    originalPatient.Dob = patient.Dob;
+
+                    // Now update the original patient object
+                    await _patientService.UpdatePatientAsync(originalPatient);
+
+                    TempData["UserManagementMessage"] = "Patient details updated successfully.";
+                    return RedirectToAction(nameof(ManageUsers));
+                }
+                catch (DbUpdateConcurrencyException)
+                {
+                    // Handle the case where the record might not exist anymore
+                    if (await _patientService.GetPatientByIdAsync(id) == null)
+                    {
+                        return NotFound();
+                    }
+                    else
+                    {
+                        throw;
+                    }
+                }
+            }
+            // If ModelState is not valid, return to the view with the current data to show errors
+            return View(patient);
+        }
+
+        // Add these two methods inside your AdminController.cs
+
+        // GET: /Admin/EditDoctor/5
+        [HttpGet]
+        public async Task<IActionResult> EditDoctor(int id)
+        {
+            var doctor = await _doctorService.GetDoctorByIdAsync(id);
+            if (doctor == null)
+            {
+                return NotFound(); // Returns a 404 if no doctor is found with that ID
+            }
+            // This will look for a view at /Views/Admin/EditDoctor.cshtml
+            return View(doctor);
+        }
+
+        // POST: /Admin/EditDoctor/5
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> EditDoctor(int id, Doctor doctor)
+        {
+            if (id != doctor.DoctorId)
+            {
+                return NotFound();
+            }
+
+            if (ModelState.IsValid)
+            {
+                try
+                {
+                    // Get the original doctor from DB to preserve the password hash
+                    var originalDoctor = await _doctorService.GetDoctorByIdAsync(id);
+                    if (originalDoctor == null)
+                    {
+                        return NotFound();
+                    }
+
+                    // Copy over the new values, but keep the old password
+                    originalDoctor.Name = doctor.Name;
+                    originalDoctor.Email = doctor.Email;
+                    originalDoctor.Specialization = doctor.Specialization;
+                    originalDoctor.Phone = doctor.Phone;
+
+                    // Now update the original doctor object
+                    await _doctorService.UpdateDoctorAsync(originalDoctor);
+
+                    TempData["UserManagementMessage"] = "Doctor details updated successfully.";
+                    return RedirectToAction(nameof(ManageUsers));
+                }
+                catch (DbUpdateConcurrencyException)
+                {
+                    // Handle the case where the record might not exist anymore
+                    if (await _doctorService.GetDoctorByIdAsync(id) == null)
+                    {
+                        return NotFound();
+                    }
+                    else
+                    {
+                        throw;
+                    }
+                }
+            }
+            // If the model state is not valid, return to the edit page to show errors
+            return View(doctor);
+        }
+
+        // NOTE: You will need to create the corresponding EditDoctor and EditAdmin
+        // GET and POST actions, and their respective Views, following the same
+        // pattern as EditPatient.
     }
 }
