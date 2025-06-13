@@ -12,8 +12,8 @@ using Patient_Appointment_Management_System.Data;
 namespace Patient_Appointment_Management_System.Migrations
 {
     [DbContext(typeof(PatientAppointmentDbContext))]
-    [Migration("20250606050527_InitialCreate")]
-    partial class InitialCreate
+    [Migration("20250613032130_db")]
+    partial class db
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)

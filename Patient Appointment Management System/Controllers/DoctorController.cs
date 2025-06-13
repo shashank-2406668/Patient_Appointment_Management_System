@@ -708,7 +708,7 @@ namespace Patient_Appointment_Management_System.Controllers
                 await CreateNotificationAsync(
                     patientId: appointment.PatientId,
                     doctorId: null,
-                    message: $"Your appointment with Dr. {HttpContext.Session.GetString("DoctorName")} on {appointment.AppointmentDateTime.ToString("MMM dd, yyyy at hh:mm tt")} has been cancelled by the doctor.",
+                    message: $"Your appointment with Dr. {HttpContext.Session.GetString("DoctorName")} on {appointment.AppointmentDateTime.ToString("MMM dd, yyyy hh:mm tt")} has been cancelled by the doctor.",
                     notificationType: "AppointmentCancelled",
                     url: "/Patient/ViewAppointments"
                 );
