@@ -1,21 +1,23 @@
-﻿@model Patient_Appointment_Management_System.Models.Patient
+﻿@model Patient_Appointment_Management_System.Models.Admin
 @{
-    ViewData["Title"] = "Edit Patient";
+    ViewData["Title"] = "Edit Admin";
     Layout = "~/Views/Shared/_AdminLayout.cshtml";
 }
 
 <div class="container-fluid mt-4">
     <div class="card shadow mb-4">
         <div class="card-header py-3">
-            <h6 class="m-0 font-weight-bold text-info">Edit Patient: @Model.Name</h6>
+            <h6 class="m-0 font-weight-bold text-primary">Edit Admin: @Model.Name</h6>
         </div>
         <div class="card-body">
-            <form asp-action="EditPatient">
+            <form asp-action="EditAdmin">
                 @Html.AntiForgeryToken()
                 <div asp-validation-summary="ModelOnly" class="text-danger"></div>
 
-                <input type="hidden" asp-for="PatientId" />
-                <input type="hidden" asp-for="PasswordHash" /> <!-- IMPORTANT: Preserve the password hash -->
+                <!-- Use the correct ID for the Admin model -->
+                <input type="hidden" asp-for="AdminId" />
+                <!-- IMPORTANT: Preserve the existing password hash -->
+                <input type="hidden" asp-for="PasswordHash" />
 
                 <div class="mb-3">
                     <label asp-for="Name" class="form-label"></label>
@@ -27,10 +29,12 @@
                     <input asp-for="Email" class="form-control" />
                     <span asp-validation-for="Email" class="text-danger"></span>
                 </div>
+
+                <!-- The 'Admin' model has a 'Role', not a 'Phone' number. -->
                 <div class="mb-3">
-                    <label asp-for="Phone" class="form-label"></label>
-                    <input asp-for="Phone" class="form-control" />
-                    <span asp-validation-for="Phone" class="text-danger"></span>
+                    <label asp-for="Role" class="form-label"></label>
+                    <input asp-for="Role" class="form-control" />
+                    <span asp-validation-for="Role" class="text-danger"></span>
                 </div>
 
                 <div class="mt-4">

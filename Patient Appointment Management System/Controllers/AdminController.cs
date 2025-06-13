@@ -664,7 +664,65 @@ namespace Patient_Appointment_Management_System.Controllers
             // If the model state is not valid, return to the edit page to show errors
             return View(doctor);
         }
+        // Add these two methods inside your AdminController.cs file
 
+        // GET: /Admin/EditAdmin/1
+        [HttpGet]
+        public async Task<IActionResult> EditAdmin(int id)
+        {
+            var admin = await _adminService.GetAdminByIdAsync(id);
+            if (admin == null)
+            {
+                return NotFound();
+            }
+            // This will look for the view at /Views/Admin/EditAdmin.cshtml
+            return View(admin);
+        }
+
+        // POST: /Admin/EditAdmin/1
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> EditAdmin(int id, Admin admin)
+        {
+            if (id != admin.AdminId)
+            {
+                return NotFound();
+            }
+
+            if (ModelState.IsValid)
+            {
+                try
+                {
+                    var originalAdmin = await _adminService.GetAdminByIdAsync(id);
+                    if (originalAdmin == null)
+                    {
+                        return NotFound();
+                    }
+
+                    // Copy new values, but preserve the password hash
+                    originalAdmin.Name = admin.Name;
+                    originalAdmin.Email = admin.Email;
+                    originalAdmin.Role = admin.Role;
+
+                    await _adminService.UpdateAdminAsync(originalAdmin);
+
+                    TempData["UserManagementMessage"] = "Admin details updated successfully.";
+                    return RedirectToAction(nameof(ManageUsers));
+                }
+                catch (DbUpdateConcurrencyException)
+                {
+                    if (await _adminService.GetAdminByIdAsync(id) == null)
+                    {
+                        return NotFound();
+                    }
+                    else
+                    {
+                        throw;
+                    }
+                }
+            }
+            return View(admin);
+        }
         // NOTE: You will need to create the corresponding EditDoctor and EditAdmin
         // GET and POST actions, and their respective Views, following the same
         // pattern as EditPatient.
