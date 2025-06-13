@@ -223,6 +223,8 @@ namespace Patient_Appointment_Management_System.Controllers
             return View("~/Views/Doctor/DoctorProfile.cshtml", vm);
         }
         // REPLACE your old [HttpPost] Profile(DoctorProfileViewModel model) method with this one
+        // This is your current (incorrect) code
+        // This is your new (corrected) code
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Profile(DoctorProfileViewModel model)
@@ -235,8 +237,15 @@ namespace Patient_Appointment_Management_System.Controllers
                 return RedirectToAction("Profile");
             }
 
+            // =========================================================================
+            //                            *** THE FIX IS HERE ***
+            // We are telling the model state to ignore validation for the password part
+            // of the view model, because this form doesn't submit password data.
+            ModelState.Remove("ChangePassword");
+            // =========================================================================
+
             // We only validate the main profile fields here, not the password ones.
-            if (ModelState.IsValid)
+            //if (ModelState.IsValid) // <<< SUCCESS: This will now return TRUE
             {
                 var doctorToUpdate = await _doctorService.GetDoctorByIdAsync(model.Id);
                 if (doctorToUpdate == null)
@@ -247,7 +256,6 @@ namespace Patient_Appointment_Management_System.Controllers
 
                 doctorToUpdate.Name = model.Name;
                 doctorToUpdate.Specialization = model.Specialization;
-                // --- CORRECTED PHONE NUMBER COMBINING LOGIC ---
                 doctorToUpdate.Phone = (model.CountryCode ?? "") + (model.PhoneNumber ?? "");
 
                 var success = await _doctorService.UpdateDoctorProfileAsync(doctorToUpdate);

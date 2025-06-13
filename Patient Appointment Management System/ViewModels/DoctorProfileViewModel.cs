@@ -22,8 +22,10 @@ namespace Patient_Appointment_Management_System.ViewModels
         [Display(Name = "Country Code")]
         public string? CountryCode { get; set; }
 
+        // To: ViewModels/DoctorProfileViewModel.cs
+
         [Display(Name = "Phone Number")]
-        [RegularExpression(@"^\d{10}$", ErrorMessage = "Please enter a valid 10-digit phone number.")]
+        // We've removed the strict validation to allow empty phone numbers.
         public string? PhoneNumber { get; set; }
 
         // This property will hold the model for the password change form

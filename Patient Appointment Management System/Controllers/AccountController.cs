@@ -21,11 +21,7 @@ namespace Patient_Appointment_Management_System.Controllers
             // For now, let's just see if we received the data
             Debug.WriteLine($"Admin Login Attempt - Email: {email}, Password: {password}");
 
-            // In a real app, you would:
-            // 1. Check email and password against the database.
-            // 2. If valid, log the user in (create a session/cookie).
-            // 3. Redirect to the admin dashboard.
-            // 4. If invalid, show an error message on the login page.
+            
 
             if (!string.IsNullOrEmpty(email) && !string.IsNullOrEmpty(password))
             {
