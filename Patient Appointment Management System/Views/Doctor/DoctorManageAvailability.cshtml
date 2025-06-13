@@ -243,8 +243,8 @@
                                 {
                                     <tr id="slot-row-@slot.Id">
                                         <td>@slot.Date.ToString("yyyy-MM-dd")</td>
-                                        <td>@slot.StartTime.ToString(@"hh\:mm") AM/PM</td> @* Or use specific formatting if needed *@
-                                        <td>@slot.EndTime.ToString(@"hh\:mm") AM/PM</td>   @* Example: new DateTime(slot.EndTime.Ticks).ToString("hh:mm tt") *@
+                                        <td>@slot.StartTime.ToString("hh:mm tt")</td>
+                                        <td>@slot.EndTime.ToString("hh:mm tt")</td>   @* Example: new DateTime(slot.EndTime.Ticks).ToString("hh:mm tt") *@
                                         <td>
                                             @if (slot.IsBooked)
                                             {
