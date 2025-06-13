@@ -3,37 +3,49 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>@ViewData["Title"] - HS Hospital</title> 
+    <title>@ViewData["Title"] - HS Hospital</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <!-- Link to your site's custom CSS if you have one in wwwroot/css/site.css -->
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
-    <!-- You can also link to the specific styles from your original HTML if they are unique to all pages -->
+
+    <!-- ======================= STYLES WITH COLOR ======================= -->
     <style>
-        /* Minimal shared styles, or move page-specific styles to Index.cshtml */
+        html {
+            height: 100%;
+        }
+
         body {
-            font-family: 'Arial', sans-serif;
-            /* Consider moving background to site.css or specific views if it varies */
+            display: flex;
+            flex-direction: column;
+            min-height: 100%;
+            margin: 0;
+            background-color: #f4f7f9; /* A soft, light grey for the overall background */
         }
 
         .hospital-logo {
-            width: 80px; /* Or your desired size */
+            width: 80px;
             margin-right: 15px;
         }
 
-        footer { /* Shared footer style */
-            background: linear-gradient(135deg, #6610f2, #007bff);
-            color: white;
-            padding: 15px 0;
+        /* This ensures the main content area grows to push the footer down */
+        main {
+            flex: 1 0 auto;
+        }
+
+        /* This ensures the footer does not shrink */
+        footer {
+            flex-shrink: 0;
         }
     </style>
-        @await RenderSectionAsync("Styles", required: false) <!-- For page-specific styles -->
+    <!-- ===================== END OF STYLES ===================== -->
+    @await RenderSectionAsync("Styles", required: false)
 </head>
+
 <body>
     <header>
-        <nav class="navbar navbar-expand-sm navbar-dark bg-primary">
+        <!-- The header remains blue, providing a strong, branded top bar -->
+        <nav class="navbar navbar-expand-sm navbar-dark bg-primary shadow-sm">
             <div class="container-fluid">
                 <a class="navbar-brand" asp-controller="Home" asp-action="Index">
-                    <!-- Use Tag Helpers for links -->
                     <img src="https://www.creativefabrica.com/wp-content/uploads/2018/11/Hospital-logo-by-meisuseno-5.jpg" alt="Hospital Logo" class="rounded-pill hospital-logo">
                     HS Hospital
                 </a>
@@ -43,7 +55,6 @@
                 <div class="collapse navbar-collapse" id="navbarNav">
                     <ul class="navbar-nav me-auto">
                         <li class="nav-item">
-                            <!-- Example: Update these links if they go to actual pages/actions -->
                             <a class="nav-link" href="#">Bengaluru</a>
                         </li>
                         <li class="nav-item">
@@ -58,27 +69,25 @@
         </nav>
     </header>
 
-    <div class="container">
-        <!-- Main content container -->
-        <main role="main" class="pb-3">
-            @RenderBody() <!-- This is where the content of Index.cshtml will be injected -->
-        </main>
-    </div>
-
-    <footer class="text-center mt-5 border-top footer text-muted">
-        <!-- Added border-top and text-muted for standard layout feel -->
+    <!-- The main content area will use the light grey background from the body style -->
+    <main role="main" class="py-4">
         <div class="container">
+            @RenderBody()
+        </div>
+    </main>
+
+    <!-- ======================= FOOTER COLOR CHANGE ======================= -->
+    <!-- The footer is now blue to match the header, with white text for contrast -->
+    <footer class="text-center footer bg-primary text-white">
+        <div class="container p-3">
             &copy; @DateTime.Now.Year - HS Hospital Bangalore. All rights reserved.
-            <!-- If you have a privacy page linked from default template -->
-            <!-- <a asp-area="" asp-controller="Home" asp-action="Privacy">Privacy</a> -->
         </div>
     </footer>
 
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-    <!-- Link to your site's custom JS if you have one in wwwroot/js/site.js -->
     <script src="~/js/site.js" asp-append-version="true"></script>
 
-    @await RenderSectionAsync("Scripts", required: false) <!-- For page-specific scripts -->
+    @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>
