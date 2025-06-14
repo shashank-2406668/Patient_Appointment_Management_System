@@ -650,7 +650,7 @@ namespace Patient_Appointment_Management_System.Controllers
             var doctorName = HttpContext.Session.GetString("DoctorName");
             HttpContext.Session.Clear();
             _logger.LogInformation($"Doctor {doctorName ?? "Unknown"} logged out successfully.");
-            TempData["DoctorLogoutMessage"] = "You have been successfully logged out.";
+            //TempData["DoctorLogoutMessage"] = "You have been successfully logged out.";
             return RedirectToAction("Index", "Home");
 
 
