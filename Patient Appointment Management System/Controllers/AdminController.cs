@@ -4,10 +4,6 @@ using Patient_Appointment_Management_System.Services;
 using Patient_Appointment_Management_System.Models; // This brings Patient_Appointment_Management_System.Models.LogLevel into scope
 using Patient_Appointment_Management_System.Utils;
 using System.Diagnostics;
-using System.Threading.Tasks;
-using Microsoft.AspNetCore.Http;
-using System;
-using System.Linq;
 using Microsoft.EntityFrameworkCore;
 // using Microsoft.Extensions.Logging; // If this was uncommented, it would also bring Microsoft.Extensions.Logging.LogLevel
 
@@ -82,7 +78,6 @@ namespace Patient_Appointment_Management_System.Controllers
                     EventType = "AdminLoginSuccess",
                     Message = $"Admin '{admin.Name}' (ID: {admin.AdminId}) logged in successfully.",
                     Source = "AdminController",
-                    // --- QUALIFIED ENUM ---
                     Level = Patient_Appointment_Management_System.Models.LogLevel.Information.ToString(),
                     UserId = admin.AdminId.ToString()
                 });
@@ -97,7 +92,6 @@ namespace Patient_Appointment_Management_System.Controllers
                     EventType = "AdminLoginFailure",
                     Message = $"Failed login attempt for email: {model.Email}.",
                     Source = "AdminController",
-                    // --- QUALIFIED ENUM ---
                     Level = Patient_Appointment_Management_System.Models.LogLevel.Warning.ToString()
                 });
                 ModelState.AddModelError(string.Empty, "Invalid email or password.");
@@ -151,7 +145,6 @@ namespace Patient_Appointment_Management_System.Controllers
         public async Task<IActionResult> CancelAppointmentForConflict(int appointmentId)
         {
             var authResult = RedirectToLoginIfNotAdmin();
-            // For AJAX, it's better to return an UnauthorizedResult or specific JSON
             if (authResult != null) return Unauthorized(new { success = false, message = "Admin not logged in. Please refresh and log in again." });
 
 
@@ -170,7 +163,6 @@ namespace Patient_Appointment_Management_System.Controllers
                     EventType = "ConflictResolved",
                     Message = $"Admin (ID: {adminId}) cancelled Appointment ID: {appointmentId} due to conflict.",
                     Source = "AdminController",
-                    // --- QUALIFIED ENUM ---
                     Level = Patient_Appointment_Management_System.Models.LogLevel.Information.ToString(),
                     UserId = adminId
                 });
@@ -183,7 +175,6 @@ namespace Patient_Appointment_Management_System.Controllers
                     EventType = "ConflictResolutionFailure",
                     Message = $"Admin (ID: {adminId}) failed to cancel Appointment ID: {appointmentId}.",
                     Source = "AdminController",
-                    // --- QUALIFIED ENUM ---
                     Level = Patient_Appointment_Management_System.Models.LogLevel.Warning.ToString(),
                     UserId = adminId
                 });
@@ -191,8 +182,7 @@ namespace Patient_Appointment_Management_System.Controllers
             }
         }
 
-        // Find the ManageUsers() action and replace it with this updated version.
-        // In: Controllers/AdminController.cs
+     
 
         [HttpGet]
         public async Task<IActionResult> ManageUsers()
@@ -200,7 +190,6 @@ namespace Patient_Appointment_Management_System.Controllers
             var authResult = RedirectToLoginIfNotAdmin(nameof(ManageUsers));
             if (authResult != null) return authResult;
 
-            // Get Admins (Existing Logic)
             var adminsFromDb = await _adminService.GetAllAdminsAsync();
             var adminDisplayViewModels = adminsFromDb.Select(a => new AdminDisplayViewModel
             {
@@ -210,7 +199,6 @@ namespace Patient_Appointment_Management_System.Controllers
                 Role = a.Role
             }).ToList();
 
-            // Get Doctors (Existing Logic)
             var doctorsFromDb = await _doctorService.GetAllDoctorsAsync();
             var doctorRowViewModels = doctorsFromDb.Select(d => new DoctorRowViewModel
             {
@@ -221,10 +209,6 @@ namespace Patient_Appointment_Management_System.Controllers
                 Specialization = d.Specialization
             }).ToList();
 
-            // ==========================================================
-            //          *** ADD THIS NEW LOGIC TO GET PATIENTS ***
-            // ==========================================================
-            // Assuming you have a GetAllPatientsAsync() method in your IPatientService
             var patientsFromDb = await _patientService.GetAllPatientsAsync();
             var patientRowViewModels = patientsFromDb.Select(p => new PatientRowViewModel
             {
@@ -233,10 +217,7 @@ namespace Patient_Appointment_Management_System.Controllers
                 Email = p.Email,
                 Phone = p.Phone
             }).ToList();
-            // ==========================================================
-
-
-            // Populate the single ViewModel with all three lists
+           
             var viewModel = new AdminManageUsersViewModel
             {
                 Admins = adminDisplayViewModels,
@@ -291,7 +272,6 @@ namespace Patient_Appointment_Management_System.Controllers
                         EventType = "AdminCreated",
                         Message = $"Admin '{admin.Name}' (Email: {admin.Email}) created by Admin ID: {currentAdminId}.",
                         Source = "AdminController",
-                        // --- QUALIFIED ENUM ---
                         Level = Patient_Appointment_Management_System.Models.LogLevel.Information.ToString(),
                         UserId = currentAdminId
                     });
@@ -315,7 +295,6 @@ namespace Patient_Appointment_Management_System.Controllers
             return View("~/Views/Admin/AddAdmin.cshtml", model);
         }
 
-        // File: Controllers/AdminController.cs (ViewSystemLogs action)
 
         [HttpGet]
         public async Task<IActionResult> ViewSystemLogs(int page = 1, string filterLevel = null, DateTime? startDate = null, DateTime? endDate = null)
@@ -326,7 +305,7 @@ namespace Patient_Appointment_Management_System.Controllers
             int pageSize = 20; // Or from configuration
             var (logs, totalLogs) = await _systemLogService.GetPaginatedLogsAsync(page, pageSize, filterLevel, startDate, endDate);
 
-            var viewModel = new ViewSystemLogsViewModel // ViewSystemLogsViewModel constructor will populate AvailableLogLevels
+            var viewModel = new ViewSystemLogsViewModel 
             {
                 SystemLogs = logs,
                 CurrentPage = page,
@@ -335,14 +314,13 @@ namespace Patient_Appointment_Management_System.Controllers
                 FilterLevel = filterLevel,
                 FilterStartDate = startDate,
                 FilterEndDate = endDate
-                // AvailableLogLevels will be set by the ViewModel's constructor
             };
 
-            ViewBag.LogsTitle = "System Event Logs"; // Can be set in the view as well
+            ViewBag.LogsTitle = "System Event Logs"; 
             return View("~/Views/Admin/ViewSystemLogs.cshtml", viewModel);
         }
 
-        // In: Controllers/AdminController.cs
+      
 
         [HttpPost]
         [ValidateAntiForgeryToken]
@@ -364,10 +342,8 @@ namespace Patient_Appointment_Management_System.Controllers
             }
 
             HttpContext.Session.Clear();
-            // This message will now appear on the home page after redirection.
             TempData["GlobalSuccessMessage"] = "You have been successfully logged out.";
 
-            // THE FIX: Redirect to the "Index" action of the "Home" controller.
             return RedirectToAction("Index", "Home");
         }
 
@@ -389,7 +365,7 @@ namespace Patient_Appointment_Management_System.Controllers
                 var admin = await _adminService.GetAdminByEmailAsync(model.Email);
                 string eventType = "PasswordResetRequest";
                 string message;
-                // --- QUALIFY ENUM HERE ---
+             
                 Patient_Appointment_Management_System.Models.LogLevel level = Patient_Appointment_Management_System.Models.LogLevel.Information;
 
                 if (admin != null)
@@ -400,7 +376,6 @@ namespace Patient_Appointment_Management_System.Controllers
                 else
                 {
                     message = $"Password reset attempt for non-existent admin email: {model.Email}.";
-                    // --- QUALIFY ENUM HERE ---
                     level = Patient_Appointment_Management_System.Models.LogLevel.Warning;
                 }
                 await _systemLogService.LogEventAsync(new SystemLog
@@ -408,7 +383,7 @@ namespace Patient_Appointment_Management_System.Controllers
                     EventType = eventType,
                     Message = message,
                     Source = "AdminController",
-                    Level = level.ToString() // Use the qualified enum variable
+                    Level = level.ToString() 
                 });
 
                 TempData["ForgotPasswordMessage"] = "If an account with that email address exists, a password reset link has been sent. Please check your inbox (and spam folder).";
@@ -419,7 +394,7 @@ namespace Patient_Appointment_Management_System.Controllers
 
 
 
-        // Add these methods inside your AdminController class
+       
 
         [HttpGet]
         public IActionResult AddDoctor()
@@ -464,7 +439,6 @@ namespace Patient_Appointment_Management_System.Controllers
                         Level = Patient_Appointment_Management_System.Models.LogLevel.Information.ToString(),
                         UserId = currentAdminId
                     });
-                    // Use a consistent TempData key for all user management actions
                     TempData["UserManagementMessage"] = $"Doctor '{doctor.Name}' added successfully.";
                     return RedirectToAction("ManageUsers");
                 }
@@ -476,7 +450,6 @@ namespace Patient_Appointment_Management_System.Controllers
             return View("~/Views/Admin/AddDoctor.cshtml", model);
         }
 
-        // --- DELETE ACTIONS ---
 
         [HttpPost]
         [ValidateAntiForgeryToken]
@@ -521,7 +494,6 @@ namespace Patient_Appointment_Management_System.Controllers
                 return RedirectToAction("ManageUsers");
             }
 
-            // Add more safety checks if needed (e.g., check if it's the last admin)
 
             var success = await _adminService.DeleteAdminAsync(id);
             if (success)
@@ -536,7 +508,7 @@ namespace Patient_Appointment_Management_System.Controllers
         }
 
 
-        // --- EDIT ACTIONS (PATIENT) ---
+       
 
         [HttpGet]
         public async Task<IActionResult> EditPatient(int id)
@@ -544,11 +516,9 @@ namespace Patient_Appointment_Management_System.Controllers
             var patient = await _patientService.GetPatientByIdAsync(id);
             if (patient == null) return NotFound();
 
-            // Here, you would map to a specific EditPatientViewModel if needed.
-            // For simplicity, we are passing the model directly.
+       
             return View(patient);
         }
-        // In: Controllers/AdminController.cs
 
         [HttpPost]
         [ValidateAntiForgeryToken]
@@ -563,21 +533,18 @@ namespace Patient_Appointment_Management_System.Controllers
             {
                 try
                 {
-                    // Get the original patient from DB to preserve the password hash
                     var originalPatient = await _patientService.GetPatientByIdAsync(id);
                     if (originalPatient == null)
                     {
                         return NotFound();
                     }
 
-                    // Copy over the new values, but keep the old password
                     originalPatient.Name = patient.Name;
                     originalPatient.Email = patient.Email;
                     originalPatient.Phone = patient.Phone;
-                    originalPatient.Address = patient.Address; // Add other fields as needed
+                    originalPatient.Address = patient.Address; 
                     originalPatient.Dob = patient.Dob;
 
-                    // Now update the original patient object
                     await _patientService.UpdatePatientAsync(originalPatient);
 
                     TempData["UserManagementMessage"] = "Patient details updated successfully.";
@@ -585,7 +552,6 @@ namespace Patient_Appointment_Management_System.Controllers
                 }
                 catch (DbUpdateConcurrencyException)
                 {
-                    // Handle the case where the record might not exist anymore
                     if (await _patientService.GetPatientByIdAsync(id) == null)
                     {
                         return NotFound();
@@ -596,22 +562,18 @@ namespace Patient_Appointment_Management_System.Controllers
                     }
                 }
             }
-            // If ModelState is not valid, return to the view with the current data to show errors
             return View(patient);
         }
 
-        // Add these two methods inside your AdminController.cs
-
-        // GET: /Admin/EditDoctor/5
+        
         [HttpGet]
         public async Task<IActionResult> EditDoctor(int id)
         {
             var doctor = await _doctorService.GetDoctorByIdAsync(id);
             if (doctor == null)
             {
-                return NotFound(); // Returns a 404 if no doctor is found with that ID
+                return NotFound(); 
             }
-            // This will look for a view at /Views/Admin/EditDoctor.cshtml
             return View(doctor);
         }
 
@@ -629,14 +591,12 @@ namespace Patient_Appointment_Management_System.Controllers
             {
                 try
                 {
-                    // Get the original doctor from DB to preserve the password hash
                     var originalDoctor = await _doctorService.GetDoctorByIdAsync(id);
                     if (originalDoctor == null)
                     {
                         return NotFound();
                     }
 
-                    // Copy over the new values, but keep the old password
                     originalDoctor.Name = doctor.Name;
                     originalDoctor.Email = doctor.Email;
                     originalDoctor.Specialization = doctor.Specialization;
@@ -661,10 +621,63 @@ namespace Patient_Appointment_Management_System.Controllers
                     }
                 }
             }
-            // If the model state is not valid, return to the edit page to show errors
             return View(doctor);
         }
 
+        [HttpGet]
+        public async Task<IActionResult> EditAdmin(int id)
+        {
+            var admin = await _adminService.GetAdminByIdAsync(id);
+            if (admin == null)
+            {
+                return NotFound();
+            }
+            return View(admin);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> EditAdmin(int id, Admin admin)
+        {
+            if (id != admin.AdminId)
+            {
+                return NotFound();
+            }
+
+            if (ModelState.IsValid)
+            {
+                try
+                {
+                    var originalAdmin = await _adminService.GetAdminByIdAsync(id);
+                    if (originalAdmin == null)
+                    {
+                        return NotFound();
+                    }
+
+                    // Copy new values, but preserve the password hash
+                    originalAdmin.Name = admin.Name;
+                    originalAdmin.Email = admin.Email;
+                    originalAdmin.Role = admin.Role;
+
+                    await _adminService.UpdateAdminAsync(originalAdmin);
+
+                    TempData["UserManagementMessage"] = "Admin details updated successfully.";
+                    return RedirectToAction(nameof(ManageUsers));
+                }
+                catch (DbUpdateConcurrencyException)
+                {
+                    if (await _adminService.GetAdminByIdAsync(id) == null)
+                    {
+                        return NotFound();
+                    }
+                    else
+                    {
+                        throw;
+                    }
+                }
+            }
+            return View(admin);
+        }
         // NOTE: You will need to create the corresponding EditDoctor and EditAdmin
         // GET and POST actions, and their respective Views, following the same
         // pattern as EditPatient.
