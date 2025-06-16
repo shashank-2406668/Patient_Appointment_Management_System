@@ -6,11 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace Patient_Appointment_Management_System.Migrations
 {
     /// <inheritdoc />
-<<<<<<<< HEAD:Patient Appointment Management System/Migrations/20250613072729_InitialSchema.cs
-    public partial class InitialSchema : Migration
-========
-    public partial class initialschema : Migration
->>>>>>>> 656f58a9165b0670994aefdf89c2b8d422ae03db:Patient Appointment Management System/Migrations/20250614075222_initialschema.cs
+    public partial class initialSchema : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)

@@ -1,14 +1,15 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Patient_Appointment_Management_System.ViewModels;
 using Patient_Appointment_Management_System.Services;
-using Patient_Appointment_Management_System.Models; // This brings Patient_Appointment_Management_System.Models.LogLevel into scope
+using Patient_Appointment_Management_System.Models;
 using Patient_Appointment_Management_System.Utils;
-using System.Diagnostics;
+using System.Threading.Tasks;
+using System.Linq;
 using Microsoft.EntityFrameworkCore;
-// using Microsoft.Extensions.Logging; // If this was uncommented, it would also bring Microsoft.Extensions.Logging.LogLevel
 
 namespace Patient_Appointment_Management_System.Controllers
 {
+    // This controller handles all admin actions
     public class AdminController : Controller
     {
         private readonly IAdminService _adminService;
@@ -17,6 +18,7 @@ namespace Patient_Appointment_Management_System.Controllers
         private readonly ISystemLogService _systemLogService;
         private readonly IConflictService _conflictService;
 
+        // Constructor to get all needed services
         public AdminController(
             IAdminService adminService,
             IPatientService patientService,
@@ -31,22 +33,13 @@ namespace Patient_Appointment_Management_System.Controllers
             _conflictService = conflictService;
         }
 
-        private bool IsAdminLoggedIn() => HttpContext.Session.GetString("AdminLoggedIn") == "true";
-
-        private IActionResult RedirectToLoginIfNotAdmin(string actionName = null)
+        // Helper: check if admin is logged in
+        private bool IsAdminLoggedIn()
         {
-            if (!IsAdminLoggedIn())
-            {
-                TempData["ErrorMessage"] = "Please log in as admin to access this page.";
-                if (!string.IsNullOrEmpty(actionName))
-                {
-                    TempData["ReturnUrl"] = Url.Action(actionName, "Admin");
-                }
-                return RedirectToAction("AdminLogin");
-            }
-            return null;
+            return HttpContext.Session.GetString("AdminLoggedIn") == "true";
         }
 
+        // ========== ADMIN LOGIN ==========
         [HttpGet]
         public IActionResult AdminLogin()
         {
@@ -58,184 +51,96 @@ namespace Patient_Appointment_Management_System.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> AdminLogin(AdminLoginViewModel model)
         {
-            if (IsAdminLoggedIn()) return RedirectToAction("AdminDashboard");
-
-            if (!ModelState.IsValid)
-            {
-                return View("~/Views/Account/AdminLogin.cshtml", model);
-            }
+            if (!ModelState.IsValid) return View("~/Views/Account/AdminLogin.cshtml", model);
 
             var admin = await _adminService.GetAdminByEmailAsync(model.Email);
             if (admin != null && PasswordHelper.VerifyPassword(model.Password, admin.PasswordHash))
             {
+                // Set session for admin
                 HttpContext.Session.SetString("AdminLoggedIn", "true");
                 HttpContext.Session.SetInt32("AdminId", admin.AdminId);
                 HttpContext.Session.SetString("AdminName", admin.Name ?? "Admin");
                 HttpContext.Session.SetString("AdminRole", admin.Role ?? "Admin");
-
-                await _systemLogService.LogEventAsync(new SystemLog
-                {
-                    EventType = "AdminLoginSuccess",
-                    Message = $"Admin '{admin.Name}' (ID: {admin.AdminId}) logged in successfully.",
-                    Source = "AdminController",
-                    Level = Patient_Appointment_Management_System.Models.LogLevel.Information.ToString(),
-                    UserId = admin.AdminId.ToString()
-                });
-
                 TempData["AdminSuccessMessage"] = "Admin login successful!";
                 return RedirectToAction("AdminDashboard");
             }
-            else
-            {
-                await _systemLogService.LogEventAsync(new SystemLog
-                {
-                    EventType = "AdminLoginFailure",
-                    Message = $"Failed login attempt for email: {model.Email}.",
-                    Source = "AdminController",
-                    Level = Patient_Appointment_Management_System.Models.LogLevel.Warning.ToString()
-                });
-                ModelState.AddModelError(string.Empty, "Invalid email or password.");
-                return View("~/Views/Account/AdminLogin.cshtml", model);
-            }
+            ModelState.AddModelError("", "Invalid email or password.");
+            return View("~/Views/Account/AdminLogin.cshtml", model);
         }
 
+        // ========== ADMIN DASHBOARD ==========
         [HttpGet]
         public async Task<IActionResult> AdminDashboard()
         {
-            var authResult = RedirectToLoginIfNotAdmin(nameof(AdminDashboard));
-            if (authResult != null) return authResult;
+            if (!IsAdminLoggedIn()) return RedirectToAction("AdminLogin");
 
-            if (TempData.ContainsKey("AdminSuccessMessage"))
-            {
-                ViewBag.SuccessMessage = TempData["AdminSuccessMessage"];
-            }
-
-            var dashboardViewModel = new AdminDashboardViewModel
+            ViewBag.SuccessMessage = TempData["AdminSuccessMessage"];
+            var dashboard = new AdminDashboardViewModel
             {
                 TotalPatients = await _patientService.GetTotalPatientsCountAsync(),
                 TotalDoctors = await _doctorService.GetTotalDoctorsCountAsync(),
                 RecentSystemLogs = await _systemLogService.GetRecentLogsAsync(10),
-                ActiveConflicts = await _conflictService.GetActiveConflictsAsync(5)
+                ActiveConflicts = await _conflictService.GetActiveConflictsAsync(5),
+                RecentPatients = (await _patientService.GetRecentPatientsAsync(5)).Select(p => new PatientRowViewModel
+                {
+                    PatientId = p.PatientId,
+                    Name = p.Name,
+                    Email = p.Email,
+                    Phone = p.Phone
+                }).ToList(),
+                RecentDoctors = (await _doctorService.GetRecentDoctorsAsync(5)).Select(d => new DoctorRowViewModel
+                {
+                    DoctorId = d.DoctorId,
+                    Name = d.Name,
+                    Email = d.Email,
+                    Phone = d.Phone,
+                    Specialization = d.Specialization
+                }).ToList()
             };
-
-            var recentPatientsDb = await _patientService.GetRecentPatientsAsync(5);
-            dashboardViewModel.RecentPatients = recentPatientsDb.Select(p => new PatientRowViewModel
-            {
-                PatientId = p.PatientId,
-                Name = p.Name,
-                Email = p.Email,
-                Phone = p.Phone,
-            }).ToList();
-
-            var recentDoctorsDb = await _doctorService.GetRecentDoctorsAsync(5);
-            dashboardViewModel.RecentDoctors = recentDoctorsDb.Select(d => new DoctorRowViewModel
-            {
-                DoctorId = d.DoctorId,
-                Name = d.Name,
-                Email = d.Email,
-                Phone = d.Phone,
-                Specialization = d.Specialization,
-            }).ToList();
-
-            return View("~/Views/Admin/AdminDashboard.cshtml", dashboardViewModel);
+            return View("~/Views/Admin/AdminDashboard.cshtml", dashboard);
         }
 
-        [HttpPost]
-        [ValidateAntiForgeryToken]
-        public async Task<IActionResult> CancelAppointmentForConflict(int appointmentId)
-        {
-            var authResult = RedirectToLoginIfNotAdmin();
-            if (authResult != null) return Unauthorized(new { success = false, message = "Admin not logged in. Please refresh and log in again." });
-
-
-            if (appointmentId <= 0)
-            {
-                return BadRequest(new { success = false, message = "Invalid Appointment ID." });
-            }
-
-            var success = await _conflictService.ResolveConflictByCancellingAppointmentAsync(appointmentId);
-            var adminId = HttpContext.Session.GetInt32("AdminId")?.ToString() ?? "UnknownAdmin";
-
-            if (success)
-            {
-                await _systemLogService.LogEventAsync(new SystemLog
-                {
-                    EventType = "ConflictResolved",
-                    Message = $"Admin (ID: {adminId}) cancelled Appointment ID: {appointmentId} due to conflict.",
-                    Source = "AdminController",
-                    Level = Patient_Appointment_Management_System.Models.LogLevel.Information.ToString(),
-                    UserId = adminId
-                });
-                return Json(new { success = true, message = $"Appointment {appointmentId} cancelled successfully." });
-            }
-            else
-            {
-                await _systemLogService.LogEventAsync(new SystemLog
-                {
-                    EventType = "ConflictResolutionFailure",
-                    Message = $"Admin (ID: {adminId}) failed to cancel Appointment ID: {appointmentId}.",
-                    Source = "AdminController",
-                    Level = Patient_Appointment_Management_System.Models.LogLevel.Warning.ToString(),
-                    UserId = adminId
-                });
-                return Json(new { success = false, message = $"Failed to cancel appointment {appointmentId} or appointment not found." });
-            }
-        }
-
-     
-
+        // ========== MANAGE USERS ==========
         [HttpGet]
         public async Task<IActionResult> ManageUsers()
         {
-            var authResult = RedirectToLoginIfNotAdmin(nameof(ManageUsers));
-            if (authResult != null) return authResult;
+            if (!IsAdminLoggedIn()) return RedirectToAction("AdminLogin");
 
-            var adminsFromDb = await _adminService.GetAllAdminsAsync();
-            var adminDisplayViewModels = adminsFromDb.Select(a => new AdminDisplayViewModel
-            {
-                AdminId = a.AdminId,
-                Name = a.Name,
-                Email = a.Email,
-                Role = a.Role
-            }).ToList();
-
-            var doctorsFromDb = await _doctorService.GetAllDoctorsAsync();
-            var doctorRowViewModels = doctorsFromDb.Select(d => new DoctorRowViewModel
-            {
-                DoctorId = d.DoctorId,
-                Name = d.Name,
-                Email = d.Email,
-                Phone = d.Phone,
-                Specialization = d.Specialization
-            }).ToList();
-
-            var patientsFromDb = await _patientService.GetAllPatientsAsync();
-            var patientRowViewModels = patientsFromDb.Select(p => new PatientRowViewModel
-            {
-                PatientId = p.PatientId,
-                Name = p.Name,
-                Email = p.Email,
-                Phone = p.Phone
-            }).ToList();
-           
             var viewModel = new AdminManageUsersViewModel
             {
-                Admins = adminDisplayViewModels,
-                Doctors = doctorRowViewModels,
-                Patients = patientRowViewModels // Add the new patients list here
+                Admins = (await _adminService.GetAllAdminsAsync()).Select(a => new AdminDisplayViewModel
+                {
+                    AdminId = a.AdminId,
+                    Name = a.Name,
+                    Email = a.Email,
+                    Role = a.Role
+                }).ToList(),
+                Doctors = (await _doctorService.GetAllDoctorsAsync()).Select(d => new DoctorRowViewModel
+                {
+                    DoctorId = d.DoctorId,
+                    Name = d.Name,
+                    Email = d.Email,
+                    Phone = d.Phone,
+                    Specialization = d.Specialization
+                }).ToList(),
+                Patients = (await _patientService.GetAllPatientsAsync()).Select(p => new PatientRowViewModel
+                {
+                    PatientId = p.PatientId,
+                    Name = p.Name,
+                    Email = p.Email,
+                    Phone = p.Phone
+                }).ToList()
             };
-
-            if (TempData["UserManagementMessage"] != null) ViewBag.SuccessMessage = TempData["UserManagementMessage"];
-            if (TempData["AdminManagementError"] != null) ViewBag.ErrorMessage = TempData["AdminManagementError"];
-
+            ViewBag.SuccessMessage = TempData["UserManagementMessage"];
+            ViewBag.ErrorMessage = TempData["UserManagementError"];
             return View("~/Views/Admin/ManageUsers.cshtml", viewModel);
         }
 
+        // ========== ADD ADMIN ==========
         [HttpGet]
         public IActionResult AddAdmin()
         {
-            var authResult = RedirectToLoginIfNotAdmin(nameof(AddAdmin));
-            if (authResult != null) return authResult;
+            if (!IsAdminLoggedIn()) return RedirectToAction("AdminLogin");
             return View("~/Views/Admin/AddAdmin.cshtml", new AdminAddViewModel());
         }
 
@@ -243,110 +148,223 @@ namespace Patient_Appointment_Management_System.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> AddAdmin(AdminAddViewModel model)
         {
-            var authResult = RedirectToLoginIfNotAdmin();
-            if (authResult != null) return authResult; // Standard redirect for form posts
+            if (!IsAdminLoggedIn()) return RedirectToAction("AdminLogin");
+            if (!ModelState.IsValid) return View("~/Views/Admin/AddAdmin.cshtml", model);
 
-
-            if (ModelState.IsValid)
+            var existingAdmin = await _adminService.GetAdminByEmailAsync(model.Email);
+            if (existingAdmin != null)
             {
-                var existingAdmin = await _adminService.GetAdminByEmailAsync(model.Email);
-                if (existingAdmin != null)
-                {
-                    ModelState.AddModelError("Email", "An admin with this email address already exists.");
-                    return View("~/Views/Admin/AddAdmin.cshtml", model);
-                }
-
-                var admin = new Admin
-                {
-                    Name = model.Name,
-                    Email = model.Email,
-                    Role = string.IsNullOrEmpty(model.Role) ? "Admin" : model.Role.Trim()
-                };
-
-                bool result = await _adminService.AddAdminAsync(admin, model.Password);
-                var currentAdminId = HttpContext.Session.GetInt32("AdminId")?.ToString() ?? "System";
-                if (result)
-                {
-                    await _systemLogService.LogEventAsync(new SystemLog
-                    {
-                        EventType = "AdminCreated",
-                        Message = $"Admin '{admin.Name}' (Email: {admin.Email}) created by Admin ID: {currentAdminId}.",
-                        Source = "AdminController",
-                        Level = Patient_Appointment_Management_System.Models.LogLevel.Information.ToString(),
-                        UserId = currentAdminId
-                    });
-                    TempData["AdminManagementMessage"] = $"Admin '{admin.Name}' added successfully.";
-                    return RedirectToAction("ManageUsers");
-                }
-                else
-                {
-                    await _systemLogService.LogEventAsync(new SystemLog
-                    {
-                        EventType = "AdminCreationFailure",
-                        Message = $"Failed to create admin '{model.Name}' (Email: {model.Email}) by Admin ID: {currentAdminId}.",
-                        Source = "AdminController",
-                        // --- QUALIFIED ENUM ---
-                        Level = Patient_Appointment_Management_System.Models.LogLevel.Error.ToString(), // Corrected the specific error line
-                        UserId = currentAdminId
-                    });
-                    ModelState.AddModelError(string.Empty, "An error occurred while adding the admin.");
-                }
+                ModelState.AddModelError("Email", "An admin with this email already exists.");
+                return View("~/Views/Admin/AddAdmin.cshtml", model);
             }
+            var admin = new Admin { Name = model.Name, Email = model.Email, Role = string.IsNullOrEmpty(model.Role) ? "Admin" : model.Role.Trim() };
+            bool result = await _adminService.AddAdminAsync(admin, model.Password);
+            if (result)
+            {
+                TempData["UserManagementMessage"] = $"Admin '{admin.Name}' added successfully.";
+                return RedirectToAction("ManageUsers");
+            }
+            ModelState.AddModelError("", "An error occurred while adding the admin.");
             return View("~/Views/Admin/AddAdmin.cshtml", model);
         }
 
+        // ========== ADD DOCTOR ==========
+        [HttpGet]
+        public IActionResult AddDoctor()
+        {
+            if (!IsAdminLoggedIn()) return RedirectToAction("AdminLogin");
+            return View("~/Views/Admin/AddDoctor.cshtml", new DoctorRegisterViewModel());
+        }
 
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> AddDoctor(DoctorRegisterViewModel model)
+        {
+            if (!IsAdminLoggedIn()) return RedirectToAction("AdminLogin");
+            if (!ModelState.IsValid) return View("~/Views/Admin/AddDoctor.cshtml", model);
+
+            var existingDoctor = await _doctorService.GetDoctorByEmailAsync(model.Email);
+            if (existingDoctor != null)
+            {
+                ModelState.AddModelError("Email", "A doctor with this email already exists.");
+                return View("~/Views/Admin/AddDoctor.cshtml", model);
+            }
+            var doctor = new Doctor
+            {
+                Name = model.Name,
+                Email = model.Email,
+                Specialization = model.Specialization,
+                Phone = $"{model.CountryCode}{model.PhoneNumber}"
+            };
+            bool result = await _doctorService.AddDoctorAsync(doctor, model.Password);
+            if (result)
+            {
+                TempData["UserManagementMessage"] = $"Doctor '{doctor.Name}' added successfully.";
+                return RedirectToAction("ManageUsers");
+            }
+            ModelState.AddModelError("", "An error occurred while adding the doctor.");
+            return View("~/Views/Admin/AddDoctor.cshtml", model);
+        }
+
+        // ========== DELETE USERS ==========
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> DeletePatient(int id)
+        {
+            if (!IsAdminLoggedIn()) return RedirectToAction("AdminLogin");
+            var success = await _patientService.DeletePatientAsync(id);
+            TempData["UserManagementMessage"] = success ? $"Patient with ID {id} deleted." : "Could not delete the patient.";
+            return RedirectToAction("ManageUsers");
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> DeleteDoctor(int id)
+        {
+            if (!IsAdminLoggedIn()) return RedirectToAction("AdminLogin");
+            var success = await _doctorService.DeleteDoctorAsync(id);
+            TempData["UserManagementMessage"] = success ? $"Doctor with ID {id} deleted." : "Could not delete the doctor.";
+            return RedirectToAction("ManageUsers");
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> DeleteAdmin(int id)
+        {
+            if (!IsAdminLoggedIn()) return RedirectToAction("AdminLogin");
+            var currentAdminId = HttpContext.Session.GetInt32("AdminId");
+            if (id == currentAdminId)
+            {
+                TempData["UserManagementError"] = "You cannot delete your own account.";
+                return RedirectToAction("ManageUsers");
+            }
+            var success = await _adminService.DeleteAdminAsync(id);
+            TempData["UserManagementMessage"] = success ? $"Admin with ID {id} deleted." : "Could not delete the admin.";
+            return RedirectToAction("ManageUsers");
+        }
+
+        // ========== EDIT USERS ==========
+        [HttpGet]
+        public async Task<IActionResult> EditPatient(int id)
+        {
+            if (!IsAdminLoggedIn()) return RedirectToAction("AdminLogin");
+            var patient = await _patientService.GetPatientByIdAsync(id);
+            if (patient == null) return NotFound();
+            return View(patient);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> EditPatient(int id, Patient patient)
+        {
+            if (!IsAdminLoggedIn()) return RedirectToAction("AdminLogin");
+            if (id != patient.PatientId) return NotFound();
+            if (ModelState.IsValid)
+            {
+                var original = await _patientService.GetPatientByIdAsync(id);
+                if (original == null) return NotFound();
+                original.Name = patient.Name;
+                original.Email = patient.Email;
+                original.Phone = patient.Phone;
+                original.Address = patient.Address;
+                original.Dob = patient.Dob;
+                await _patientService.UpdatePatientAsync(original);
+                TempData["UserManagementMessage"] = "Patient details updated.";
+                return RedirectToAction("ManageUsers");
+            }
+            return View(patient);
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> EditDoctor(int id)
+        {
+            if (!IsAdminLoggedIn()) return RedirectToAction("AdminLogin");
+            var doctor = await _doctorService.GetDoctorByIdAsync(id);
+            if (doctor == null) return NotFound();
+            return View(doctor);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> EditDoctor(int id, Doctor doctor)
+        {
+            if (!IsAdminLoggedIn()) return RedirectToAction("AdminLogin");
+            if (id != doctor.DoctorId) return NotFound();
+            if (ModelState.IsValid)
+            {
+                var original = await _doctorService.GetDoctorByIdAsync(id);
+                if (original == null) return NotFound();
+                original.Name = doctor.Name;
+                original.Email = doctor.Email;
+                original.Specialization = doctor.Specialization;
+                original.Phone = doctor.Phone;
+                await _doctorService.UpdateDoctorAsync(original);
+                TempData["UserManagementMessage"] = "Doctor details updated.";
+                return RedirectToAction("ManageUsers");
+            }
+            return View(doctor);
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> EditAdmin(int id)
+        {
+            if (!IsAdminLoggedIn()) return RedirectToAction("AdminLogin");
+            var admin = await _adminService.GetAdminByIdAsync(id);
+            if (admin == null) return NotFound();
+            return View(admin);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> EditAdmin(int id, Admin admin)
+        {
+            if (!IsAdminLoggedIn()) return RedirectToAction("AdminLogin");
+            if (id != admin.AdminId) return NotFound();
+            if (ModelState.IsValid)
+            {
+                var original = await _adminService.GetAdminByIdAsync(id);
+                if (original == null) return NotFound();
+                original.Name = admin.Name;
+                original.Email = admin.Email;
+                original.Role = admin.Role;
+                await _adminService.UpdateAdminAsync(original);
+                TempData["UserManagementMessage"] = "Admin details updated.";
+                return RedirectToAction("ManageUsers");
+            }
+            return View(admin);
+        }
+
+        // ========== SYSTEM LOGS ==========
         [HttpGet]
         public async Task<IActionResult> ViewSystemLogs(int page = 1, string filterLevel = null, DateTime? startDate = null, DateTime? endDate = null)
         {
-            var authResult = RedirectToLoginIfNotAdmin(nameof(ViewSystemLogs));
-            if (authResult != null) return authResult;
-
-            int pageSize = 20; // Or from configuration
+            if (!IsAdminLoggedIn()) return RedirectToAction("AdminLogin");
+            int pageSize = 20;
             var (logs, totalLogs) = await _systemLogService.GetPaginatedLogsAsync(page, pageSize, filterLevel, startDate, endDate);
-
-            var viewModel = new ViewSystemLogsViewModel 
+            var viewModel = new ViewSystemLogsViewModel
             {
                 SystemLogs = logs,
                 CurrentPage = page,
-                TotalPages = (int)Math.Ceiling(totalLogs / (double)pageSize),
+                TotalPages = (int)System.Math.Ceiling(totalLogs / (double)pageSize),
                 TotalLogs = totalLogs,
                 FilterLevel = filterLevel,
                 FilterStartDate = startDate,
                 FilterEndDate = endDate
             };
-
-            ViewBag.LogsTitle = "System Event Logs"; 
             return View("~/Views/Admin/ViewSystemLogs.cshtml", viewModel);
         }
 
-      
-
+        // ========== LOGOUT ==========
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> AdminLogout()
+        public IActionResult AdminLogout()
         {
-            var adminName = HttpContext.Session.GetString("AdminName");
-            var adminId = HttpContext.Session.GetInt32("AdminId")?.ToString() ?? "Unknown";
-
-            if (IsAdminLoggedIn())
-            {
-                await _systemLogService.LogEventAsync(new SystemLog
-                {
-                    EventType = "AdminLogout",
-                    Message = $"Admin '{adminName}' (ID: {adminId}) logged out.",
-                    Source = "AdminController",
-                    Level = Patient_Appointment_Management_System.Models.LogLevel.Information.ToString(),
-                    UserId = adminId
-                });
-            }
-
             HttpContext.Session.Clear();
             TempData["GlobalSuccessMessage"] = "You have been successfully logged out.";
-
             return RedirectToAction("Index", "Home");
         }
 
+        // ========== FORGOT PASSWORD ==========
         [HttpGet]
         public IActionResult AdminForgotPassword()
         {
@@ -359,327 +377,27 @@ namespace Patient_Appointment_Management_System.Controllers
         public async Task<IActionResult> AdminForgotPassword(AdminForgotPasswordViewModel model)
         {
             if (IsAdminLoggedIn()) return RedirectToAction("AdminDashboard");
-
             if (ModelState.IsValid)
             {
-                var admin = await _adminService.GetAdminByEmailAsync(model.Email);
-                string eventType = "PasswordResetRequest";
-                string message;
-             
-                Patient_Appointment_Management_System.Models.LogLevel level = Patient_Appointment_Management_System.Models.LogLevel.Information;
-
-                if (admin != null)
-                {
-                    message = $"Password reset initiated for admin email: {model.Email} (Admin ID: {admin.AdminId}).";
-                    Debug.WriteLine($"Password reset token should be generated for {admin.Email}");
-                }
-                else
-                {
-                    message = $"Password reset attempt for non-existent admin email: {model.Email}.";
-                    level = Patient_Appointment_Management_System.Models.LogLevel.Warning;
-                }
-                await _systemLogService.LogEventAsync(new SystemLog
-                {
-                    EventType = eventType,
-                    Message = message,
-                    Source = "AdminController",
-                    Level = level.ToString() 
-                });
-
-                TempData["ForgotPasswordMessage"] = "If an account with that email address exists, a password reset link has been sent. Please check your inbox (and spam folder).";
+                TempData["ForgotPasswordMessage"] = "If an account with that email exists, a reset link has been sent.";
                 return RedirectToAction("AdminLogin");
             }
             return View("~/Views/Account/AdminForgotPassword.cshtml", model);
         }
 
-
-
-       
-
-        [HttpGet]
-        public IActionResult AddDoctor()
-        {
-            var authResult = RedirectToLoginIfNotAdmin(nameof(AddDoctor));
-            if (authResult != null) return authResult;
-            return View("~/Views/Admin/AddDoctor.cshtml", new DoctorRegisterViewModel());
-        }
-
+        // ========== CANCEL APPOINTMENT FOR CONFLICT ==========
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> AddDoctor(DoctorRegisterViewModel model)
+        public async Task<IActionResult> CancelAppointmentForConflict(int appointmentId)
         {
-            var authResult = RedirectToLoginIfNotAdmin();
-            if (authResult != null) return authResult;
+            if (!IsAdminLoggedIn()) return Unauthorized(new { success = false, message = "Admin not logged in." });
+            if (appointmentId <= 0) return BadRequest(new { success = false, message = "Invalid Appointment ID." });
 
-            if (ModelState.IsValid)
-            {
-                var existingDoctor = await _doctorService.GetDoctorByEmailAsync(model.Email);
-                if (existingDoctor != null)
-                {
-                    ModelState.AddModelError("Email", "A doctor with this email address already exists.");
-                    return View("~/Views/Admin/AddDoctor.cshtml", model);
-                }
-                var doctor = new Doctor
-                {
-                    Name = model.Name,
-                    Email = model.Email,
-                    Specialization = model.Specialization,
-                    Phone = $"{model.CountryCode}{model.PhoneNumber}",
-                };
-                bool result = await _doctorService.AddDoctorAsync(doctor, model.Password);
-                var currentAdminId = HttpContext.Session.GetInt32("AdminId")?.ToString() ?? "System";
-
-                if (result)
-                {
-                    await _systemLogService.LogEventAsync(new SystemLog
-                    {
-                        EventType = "DoctorCreated",
-                        Message = $"Doctor '{doctor.Name}' (Email: {doctor.Email}) created by Admin ID: {currentAdminId}.",
-                        Source = "AdminController",
-                        Level = Patient_Appointment_Management_System.Models.LogLevel.Information.ToString(),
-                        UserId = currentAdminId
-                    });
-                    TempData["UserManagementMessage"] = $"Doctor '{doctor.Name}' added successfully.";
-                    return RedirectToAction("ManageUsers");
-                }
-                else
-                {
-                    ModelState.AddModelError(string.Empty, "An error occurred while adding the doctor.");
-                }
-            }
-            return View("~/Views/Admin/AddDoctor.cshtml", model);
-        }
-
-
-        [HttpPost]
-        [ValidateAntiForgeryToken]
-        public async Task<IActionResult> DeletePatient(int id)
-        {
-            var success = await _patientService.DeletePatientAsync(id);
+            var success = await _conflictService.ResolveConflictByCancellingAppointmentAsync(appointmentId);
             if (success)
-            {
-                TempData["UserManagementMessage"] = $"Patient with ID {id} has been deleted.";
-            }
+                return Json(new { success = true, message = $"Appointment {appointmentId} cancelled." });
             else
-            {
-                TempData["UserManagementError"] = "Error: Could not delete the patient.";
-            }
-            return RedirectToAction("ManageUsers");
+                return Json(new { success = false, message = $"Failed to cancel appointment {appointmentId}." });
         }
-
-        [HttpPost]
-        [ValidateAntiForgeryToken]
-        public async Task<IActionResult> DeleteDoctor(int id)
-        {
-            var success = await _doctorService.DeleteDoctorAsync(id);
-            if (success)
-            {
-                TempData["UserManagementMessage"] = $"Doctor with ID {id} has been deleted.";
-            }
-            else
-            {
-                TempData["UserManagementError"] = "Error: Could not delete the doctor.";
-            }
-            return RedirectToAction("ManageUsers");
-        }
-
-        [HttpPost]
-        [ValidateAntiForgeryToken]
-        public async Task<IActionResult> DeleteAdmin(int id)
-        {
-            var currentAdminId = HttpContext.Session.GetInt32("AdminId");
-            if (id == currentAdminId)
-            {
-                TempData["UserManagementError"] = "Error: You cannot delete your own account.";
-                return RedirectToAction("ManageUsers");
-            }
-
-
-            var success = await _adminService.DeleteAdminAsync(id);
-            if (success)
-            {
-                TempData["UserManagementMessage"] = $"Admin with ID {id} has been deleted.";
-            }
-            else
-            {
-                TempData["UserManagementError"] = "Error: Could not delete the admin.";
-            }
-            return RedirectToAction("ManageUsers");
-        }
-
-
-       
-
-        [HttpGet]
-        public async Task<IActionResult> EditPatient(int id)
-        {
-            var patient = await _patientService.GetPatientByIdAsync(id);
-            if (patient == null) return NotFound();
-
-       
-            return View(patient);
-        }
-
-        [HttpPost]
-        [ValidateAntiForgeryToken]
-        public async Task<IActionResult> EditPatient(int id, Patient patient)
-        {
-            if (id != patient.PatientId)
-            {
-                return NotFound();
-            }
-
-            if (ModelState.IsValid)
-            {
-                try
-                {
-                    var originalPatient = await _patientService.GetPatientByIdAsync(id);
-                    if (originalPatient == null)
-                    {
-                        return NotFound();
-                    }
-
-                    originalPatient.Name = patient.Name;
-                    originalPatient.Email = patient.Email;
-                    originalPatient.Phone = patient.Phone;
-                    originalPatient.Address = patient.Address; 
-                    originalPatient.Dob = patient.Dob;
-
-                    await _patientService.UpdatePatientAsync(originalPatient);
-
-                    TempData["UserManagementMessage"] = "Patient details updated successfully.";
-                    return RedirectToAction(nameof(ManageUsers));
-                }
-                catch (DbUpdateConcurrencyException)
-                {
-                    if (await _patientService.GetPatientByIdAsync(id) == null)
-                    {
-                        return NotFound();
-                    }
-                    else
-                    {
-                        throw;
-                    }
-                }
-            }
-            return View(patient);
-        }
-
-        
-        [HttpGet]
-        public async Task<IActionResult> EditDoctor(int id)
-        {
-            var doctor = await _doctorService.GetDoctorByIdAsync(id);
-            if (doctor == null)
-            {
-                return NotFound(); 
-            }
-            return View(doctor);
-        }
-
-        // POST: /Admin/EditDoctor/5
-        [HttpPost]
-        [ValidateAntiForgeryToken]
-        public async Task<IActionResult> EditDoctor(int id, Doctor doctor)
-        {
-            if (id != doctor.DoctorId)
-            {
-                return NotFound();
-            }
-
-            if (ModelState.IsValid)
-            {
-                try
-                {
-                    var originalDoctor = await _doctorService.GetDoctorByIdAsync(id);
-                    if (originalDoctor == null)
-                    {
-                        return NotFound();
-                    }
-
-                    originalDoctor.Name = doctor.Name;
-                    originalDoctor.Email = doctor.Email;
-                    originalDoctor.Specialization = doctor.Specialization;
-                    originalDoctor.Phone = doctor.Phone;
-
-                    // Now update the original doctor object
-                    await _doctorService.UpdateDoctorAsync(originalDoctor);
-
-                    TempData["UserManagementMessage"] = "Doctor details updated successfully.";
-                    return RedirectToAction(nameof(ManageUsers));
-                }
-                catch (DbUpdateConcurrencyException)
-                {
-                    // Handle the case where the record might not exist anymore
-                    if (await _doctorService.GetDoctorByIdAsync(id) == null)
-                    {
-                        return NotFound();
-                    }
-                    else
-                    {
-                        throw;
-                    }
-                }
-            }
-            return View(doctor);
-        }
-
-        [HttpGet]
-        public async Task<IActionResult> EditAdmin(int id)
-        {
-            var admin = await _adminService.GetAdminByIdAsync(id);
-            if (admin == null)
-            {
-                return NotFound();
-            }
-            return View(admin);
-        }
-
-        [HttpPost]
-        [ValidateAntiForgeryToken]
-        public async Task<IActionResult> EditAdmin(int id, Admin admin)
-        {
-            if (id != admin.AdminId)
-            {
-                return NotFound();
-            }
-
-            if (ModelState.IsValid)
-            {
-                try
-                {
-                    var originalAdmin = await _adminService.GetAdminByIdAsync(id);
-                    if (originalAdmin == null)
-                    {
-                        return NotFound();
-                    }
-
-                    // Copy new values, but preserve the password hash
-                    originalAdmin.Name = admin.Name;
-                    originalAdmin.Email = admin.Email;
-                    originalAdmin.Role = admin.Role;
-
-                    await _adminService.UpdateAdminAsync(originalAdmin);
-
-                    TempData["UserManagementMessage"] = "Admin details updated successfully.";
-                    return RedirectToAction(nameof(ManageUsers));
-                }
-                catch (DbUpdateConcurrencyException)
-                {
-                    if (await _adminService.GetAdminByIdAsync(id) == null)
-                    {
-                        return NotFound();
-                    }
-                    else
-                    {
-                        throw;
-                    }
-                }
-            }
-            return View(admin);
-        }
-        // NOTE: You will need to create the corresponding EditDoctor and EditAdmin
-        // GET and POST actions, and their respective Views, following the same
-        // pattern as EditPatient.
     }
 }

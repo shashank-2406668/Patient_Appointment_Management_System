@@ -1,57 +1,43 @@
-﻿// File: Patient_Appointment_Management_System/Controllers/DoctorController.cs
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Patient_Appointment_Management_System.Data;
 using Patient_Appointment_Management_System.Models;
 using Patient_Appointment_Management_System.Utils;
 using Patient_Appointment_Management_System.ViewModels;
 using Patient_Appointment_Management_System.Services;
-using Microsoft.AspNetCore.Http;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using Microsoft.Extensions.Logging; // Ensure ILogger is available
-
-// using System.Globalization; // Keep if used elsewhere, not strictly needed for these changes
 
 namespace Patient_Appointment_Management_System.Controllers
 {
+    // This controller handles all doctor-related actions
     public class DoctorController : Controller
     {
-
-
-        // --- CORRECTED FIELDS ---
         private readonly IDoctorService _doctorService;
-        // We keep DbContext here because actions like Availability and Notifications still use it directly.
-        // In a full refactor, those would also move to services.
         private readonly PatientAppointmentDbContext _context;
         private readonly ILogger<DoctorController> _logger;
 
-        // --- CORRECTED CONSTRUCTOR (Only one should exist) ---
-        public DoctorController(
-            IDoctorService doctorService,
-            PatientAppointmentDbContext context,
-            ILogger<DoctorController> logger)
+        // Constructor to get required services
+        public DoctorController(IDoctorService doctorService, PatientAppointmentDbContext context, ILogger<DoctorController> logger)
         {
             _doctorService = doctorService;
             _context = context;
             _logger = logger;
         }
 
-        // --- PUBLIC REGISTRATION REMOVED ---
-        // The old DoctorRegister GET and POST methods have been completely removed from this controller.
+        // Helper to check if doctor is logged in
+        private bool IsDoctorLoggedIn()
+        {
+            return HttpContext.Session.GetString("DoctorLoggedIn") == "true" &&
+                   HttpContext.Session.GetString("UserRole") == "Doctor";
+        }
 
-        // === DOCTOR LOGIN ===
+        // ========== DOCTOR LOGIN ==========
         [HttpGet]
         public IActionResult DoctorLogin()
         {
-            // This TempData/ViewBag logic is fine
-            if (TempData["DoctorRegisterSuccessMessage"] != null) ViewBag.SuccessMessage = TempData["DoctorRegisterSuccessMessage"];
-            if (TempData["DoctorLogoutMessage"] != null) ViewBag.InfoMessage = TempData["DoctorLogoutMessage"];
-            if (TempData["GlobalSuccessMessage"] != null) ViewBag.SuccessMessage = (ViewBag.SuccessMessage != null ? ViewBag.SuccessMessage + "<br/>" : "") + TempData["GlobalSuccessMessage"];
-            if (TempData["ErrorMessage"] != null) ViewBag.ErrorMessage = TempData["ErrorMessage"];
-            if (TempData["ForgotPasswordMessage"] != null) ViewBag.InfoMessage = (ViewBag.InfoMessage != null ? ViewBag.InfoMessage + "<br/>" : "") + TempData["ForgotPasswordMessage"];
+            // Show login page with any messages
+            ViewBag.SuccessMessage = TempData["DoctorRegisterSuccessMessage"] ?? TempData["GlobalSuccessMessage"];
+            ViewBag.InfoMessage = TempData["DoctorLogoutMessage"] ?? TempData["ForgotPasswordMessage"];
+            ViewBag.ErrorMessage = TempData["ErrorMessage"];
             return View("~/Views/Account/DoctorLogin.cshtml", new DoctorLoginViewModel());
         }
 
@@ -59,41 +45,31 @@ namespace Patient_Appointment_Management_System.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> DoctorLogin(DoctorLoginViewModel model)
         {
-            if (ModelState.IsValid)
-            {
-                var doctorUser = await _doctorService.ValidateDoctorCredentialsAsync(model.Email, model.Password);
-                if (doctorUser != null)
-                {
-                    HttpContext.Session.SetString("DoctorLoggedIn", "true");
-                    HttpContext.Session.SetInt32("DoctorId", doctorUser.DoctorId);
-                    HttpContext.Session.SetString("DoctorName", doctorUser.Name);
-                    HttpContext.Session.SetString("UserRole", "Doctor");
+            if (!ModelState.IsValid)
+                return View("~/Views/Account/DoctorLogin.cshtml", model);
 
-                    _logger.LogInformation($"Doctor login successful: {doctorUser.Email}");
-                    TempData["SuccessMessage"] = "Login successful!";
-                    return RedirectToAction("Dashboard");
-                }
-                else
-                {
-                    _logger.LogWarning($"Doctor login failed for email: {model.Email}");
-                    ModelState.AddModelError(string.Empty, "Invalid email or password.");
-                }
+            var doctor = await _doctorService.ValidateDoctorCredentialsAsync(model.Email, model.Password);
+            if (doctor != null)
+            {
+                // Set session for doctor
+                HttpContext.Session.SetString("DoctorLoggedIn", "true");
+                HttpContext.Session.SetInt32("DoctorId", doctor.DoctorId);
+                HttpContext.Session.SetString("DoctorName", doctor.Name);
+                HttpContext.Session.SetString("UserRole", "Doctor");
+                TempData["SuccessMessage"] = "Login successful!";
+                return RedirectToAction("Dashboard");
             }
+            ModelState.AddModelError("", "Invalid email or password.");
             return View("~/Views/Account/DoctorLogin.cshtml", model);
         }
 
-        private bool IsDoctorLoggedIn() => HttpContext.Session.GetString("DoctorLoggedIn") == "true" && HttpContext.Session.GetString("UserRole") == "Doctor";
-
-        // === DOCTOR DASHBOARD ===
-        // PASTE THIS ENTIRE METHOD INTO YOUR DoctorController.cs, REPLACING THE OLD ONE
-
-        // === DOCTOR DASHBOARD ===
+        // ========== DOCTOR DASHBOARD ==========
         [HttpGet]
         public async Task<IActionResult> Dashboard()
         {
             if (!IsDoctorLoggedIn())
             {
-                TempData["ErrorMessage"] = "You need to log in as a doctor to access the dashboard.";
+                TempData["ErrorMessage"] = "You need to log in as a doctor.";
                 return RedirectToAction("DoctorLogin");
             }
             var doctorId = HttpContext.Session.GetInt32("DoctorId");
@@ -107,13 +83,14 @@ namespace Patient_Appointment_Management_System.Controllers
             if (doctor == null)
             {
                 HttpContext.Session.Clear();
-                TempData["ErrorMessage"] = "Your account could not be found. Please log in again.";
+                TempData["ErrorMessage"] = "Your account could not be found.";
                 return RedirectToAction("DoctorLogin");
             }
 
+            // Get today's appointments
             var todaysAppointments = await _context.Appointments
                 .Include(a => a.Patient)
-                .Where(a => a.DoctorId == doctorId.Value && a.AppointmentDateTime.Date == DateTime.Today && (a.Status == "Scheduled" || a.Status == "Confirmed"))
+                .Where(a => a.DoctorId == doctorId && a.AppointmentDateTime.Date == DateTime.Today && (a.Status == "Scheduled" || a.Status == "Confirmed"))
                 .OrderBy(a => a.AppointmentDateTime)
                 .Select(a => new AppointmentSummaryViewModel
                 {
@@ -121,12 +98,11 @@ namespace Patient_Appointment_Management_System.Controllers
                     AppointmentDateTime = a.AppointmentDateTime,
                     PatientName = a.Patient.Name,
                     Status = a.Status
-                })
-                .ToListAsync();
+                }).ToListAsync();
 
-            // --- THIS IS THE CORRECTED SECTION ---
+            // Get notifications
             var notifications = await _context.Notifications
-                .Where(n => n.DoctorId == doctorId.Value)
+                .Where(n => n.DoctorId == doctorId)
                 .OrderByDescending(n => n.SentDate).Take(10)
                 .Select(n => new NotificationViewModel
                 {
@@ -136,216 +112,126 @@ namespace Patient_Appointment_Management_System.Controllers
                     SentDate = n.SentDate,
                     IsRead = n.IsRead,
                     Url = n.Url
-                }) // THE FIX: Fields are now mapped from the database entity (n)
-                .ToListAsync();
-            // --- END OF CORRECTION ---
+                }).ToListAsync();
 
-            var unreadCount = await _context.Notifications.CountAsync(n => n.DoctorId == doctorId.Value && !n.IsRead);
+            var unreadCount = await _context.Notifications.CountAsync(n => n.DoctorId == doctorId && !n.IsRead);
 
             var viewModel = new DoctorDashboardViewModel
             {
                 DoctorDisplayName = $"Dr. {doctor.Name}",
                 TodaysAppointments = todaysAppointments,
-                Notifications = notifications, // This list now contains actual data
+                Notifications = notifications,
                 UnreadNotificationCount = unreadCount
             };
 
-            if (TempData["SuccessMessage"] != null) ViewBag.SuccessMessage = TempData["SuccessMessage"];
+            ViewBag.SuccessMessage = TempData["SuccessMessage"];
             return View("~/Views/Doctor/DoctorDashboard.cshtml", viewModel);
         }
 
-        // === DOCTOR PROFILE (REFACTORED) ===
-        // In: Controllers/DoctorController.cs
-
-        // REPLACE your entire [HttpGet] Profile() method with this one.
-        // REPLACE your old [HttpGet] Profile() method with this one
+        // ========== DOCTOR PROFILE ==========
         [HttpGet]
         public async Task<IActionResult> Profile()
         {
-            if (!IsDoctorLoggedIn())
-            {
-                TempData["ErrorMessage"] = "Please log in to view your profile.";
-                return RedirectToAction("DoctorLogin");
-            }
-
+            if (!IsDoctorLoggedIn()) return RedirectToAction("DoctorLogin");
             var doctorId = HttpContext.Session.GetInt32("DoctorId");
-            if (doctorId == null)
-            {
-                TempData["ErrorMessage"] = "Session error. Please log in again.";
-                return RedirectToAction("DoctorLogin");
-            }
+            if (doctorId == null) return RedirectToAction("DoctorLogin");
 
             var doctor = await _doctorService.GetDoctorByIdAsync(doctorId.Value);
             if (doctor == null)
             {
                 HttpContext.Session.Clear();
-                TempData["ErrorMessage"] = "Your profile could not be found.";
                 return RedirectToAction("DoctorLogin");
             }
 
+            // Split phone into country code and number
             var vm = new DoctorProfileViewModel
             {
                 Id = doctor.DoctorId,
                 Name = doctor.Name,
                 Email = doctor.Email,
-                Specialization = doctor.Specialization,
-                // The ChangePassword property is already initialized by the ViewModel's constructor
+                Specialization = doctor.Specialization
             };
-
-            // --- ROBUST PHONE NUMBER SPLITTING LOGIC ---
             if (!string.IsNullOrEmpty(doctor.Phone))
             {
-                var countryCodes = new[] { "+91", "+1", "+44", "+81", "+86" }; // Must match codes in the view
-                bool codeFound = false;
-                foreach (var code in countryCodes)
-                {
-                    if (doctor.Phone.StartsWith(code))
-                    {
-                        vm.CountryCode = code;
-                        vm.PhoneNumber = doctor.Phone.Substring(code.Length);
-                        codeFound = true;
-                        break;
-                    }
-                }
-                if (!codeFound)
-                {
-                    // If the code is not in our list, just put the whole thing in the phone number field
-                    vm.PhoneNumber = doctor.Phone;
-                }
+                var codes = new[] { "+91", "+1", "+44", "+81", "+86" };
+                vm.CountryCode = codes.FirstOrDefault(code => doctor.Phone.StartsWith(code));
+                vm.PhoneNumber = vm.CountryCode != null ? doctor.Phone.Substring(vm.CountryCode.Length) : doctor.Phone;
             }
-            // --- END OF PHONE NUMBER LOGIC ---
-
-            if (TempData["ProfileSuccessMessage"] != null) ViewBag.SuccessMessage = TempData["ProfileSuccessMessage"];
-            if (TempData["ProfileErrorMessage"] != null) ViewBag.ErrorMessage = TempData["ProfileErrorMessage"];
-            if (TempData["PasswordChangeSuccess"] != null) ViewBag.SuccessMessage = (ViewBag.SuccessMessage ?? "") + "<br/>" + TempData["PasswordChangeSuccess"];
-            if (TempData["PasswordChangeError"] != null) ViewBag.ErrorMessage = (ViewBag.ErrorMessage ?? "") + "<br/>" + TempData["PasswordChangeError"];
-
+            ViewBag.SuccessMessage = TempData["ProfileSuccessMessage"];
+            ViewBag.ErrorMessage = TempData["ProfileErrorMessage"];
             return View("~/Views/Doctor/DoctorProfile.cshtml", vm);
         }
-        // REPLACE your old [HttpPost] Profile(DoctorProfileViewModel model) method with this one
-        // This is your current (incorrect) code
-        // This is your new (corrected) code
+
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Profile(DoctorProfileViewModel model)
         {
             if (!IsDoctorLoggedIn()) return RedirectToAction("DoctorLogin");
             var doctorId = HttpContext.Session.GetInt32("DoctorId");
-            if (doctorId == null || model.Id != doctorId.Value)
-            {
-                TempData["ProfileErrorMessage"] = "A session or authorization error occurred.";
-                return RedirectToAction("Profile");
-            }
+            if (doctorId == null || model.Id != doctorId.Value) return RedirectToAction("Profile");
 
-            // =========================================================================
-            //                            *** THE FIX IS HERE ***
-            // We are telling the model state to ignore validation for the password part
-            // of the view model, because this form doesn't submit password data.
             ModelState.Remove("ChangePassword");
-            // =========================================================================
-
-            // We only validate the main profile fields here, not the password ones.
-            //if (ModelState.IsValid) // <<< SUCCESS: This will now return TRUE
+            if (ModelState.IsValid)
             {
-                var doctorToUpdate = await _doctorService.GetDoctorByIdAsync(model.Id);
-                if (doctorToUpdate == null)
-                {
-                    TempData["ProfileErrorMessage"] = "Your profile could not be found to update.";
-                    return RedirectToAction("Profile");
-                }
-
-                doctorToUpdate.Name = model.Name;
-                doctorToUpdate.Specialization = model.Specialization;
-                doctorToUpdate.Phone = (model.CountryCode ?? "") + (model.PhoneNumber ?? "");
-
-                var success = await _doctorService.UpdateDoctorProfileAsync(doctorToUpdate);
-                if (success)
-                {
-                    HttpContext.Session.SetString("DoctorName", doctorToUpdate.Name);
-                    TempData["ProfileSuccessMessage"] = "Profile details updated successfully!";
-                }
-                else
-                {
-                    TempData["ProfileErrorMessage"] = "An error occurred while saving your profile.";
-                }
+                var doctor = await _doctorService.GetDoctorByIdAsync(model.Id);
+                if (doctor == null) return RedirectToAction("Profile");
+                doctor.Name = model.Name;
+                doctor.Specialization = model.Specialization;
+                doctor.Phone = (model.CountryCode ?? "") + (model.PhoneNumber ?? "");
+                var success = await _doctorService.UpdateDoctorProfileAsync(doctor);
+                TempData["ProfileSuccessMessage"] = success ? "Profile updated!" : "Error updating profile.";
                 return RedirectToAction("Profile");
             }
-
-            TempData["ProfileErrorMessage"] = "Please correct the validation errors.";
+            TempData["ProfileErrorMessage"] = "Please correct the errors.";
             return View("~/Views/Doctor/DoctorProfile.cshtml", model);
         }
 
-        // ADD THIS ENTIRE NEW METHOD TO DoctorController.cs
+        // ========== CHANGE PASSWORD ==========
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> ChangePassword(DoctorProfileViewModel model)
         {
             if (!IsDoctorLoggedIn()) return RedirectToAction("DoctorLogin");
             var doctorId = HttpContext.Session.GetInt32("DoctorId");
-            if (doctorId == null)
-            {
-                TempData["ErrorMessage"] = "Session error. Please log in again.";
-                return RedirectToAction("DoctorLogin");
-            }
+            if (doctorId == null) return RedirectToAction("DoctorLogin");
 
-            var passwordModel = model.ChangePassword;
-
-            // We manually check the ModelState for the nested ChangePassword object
-            if (string.IsNullOrEmpty(passwordModel.CurrentPassword) ||
-                string.IsNullOrEmpty(passwordModel.NewPassword) ||
-                passwordModel.NewPassword != passwordModel.ConfirmPassword)
+            var pwd = model.ChangePassword;
+            if (string.IsNullOrEmpty(pwd.CurrentPassword) || string.IsNullOrEmpty(pwd.NewPassword) || pwd.NewPassword != pwd.ConfirmPassword)
             {
-                TempData["PasswordChangeError"] = "Please fill all password fields correctly.";
+                TempData["PasswordChangeError"] = "Fill all password fields correctly.";
                 return RedirectToAction("Profile");
             }
-
-            if (passwordModel.NewPassword.Length < 8)
+            if (pwd.NewPassword.Length < 8)
             {
-                TempData["PasswordChangeError"] = "New password must be at least 8 characters long.";
+                TempData["PasswordChangeError"] = "New password must be at least 8 characters.";
                 return RedirectToAction("Profile");
             }
-
             var doctor = await _context.Doctors.FindAsync(doctorId.Value);
-            if (doctor == null)
-            {
-                TempData["PasswordChangeError"] = "Could not find your account.";
-                return RedirectToAction("Profile");
-            }
-
-            // Verify the current password
-            if (!PasswordHelper.VerifyPassword(passwordModel.CurrentPassword, doctor.PasswordHash))
+            if (doctor == null || !PasswordHelper.VerifyPassword(pwd.CurrentPassword, doctor.PasswordHash))
             {
                 TempData["PasswordChangeError"] = "Incorrect current password.";
                 return RedirectToAction("Profile");
             }
-
-            // Hash and update the new password
-            doctor.PasswordHash = PasswordHelper.HashPassword(passwordModel.NewPassword);
-            _context.Doctors.Update(doctor);
+            doctor.PasswordHash = PasswordHelper.HashPassword(pwd.NewPassword);
             await _context.SaveChangesAsync();
-
-            TempData["PasswordChangeSuccess"] = "Password changed successfully!";
+            TempData["PasswordChangeSuccess"] = "Password changed!";
             return RedirectToAction("Profile");
         }
 
-        // ... (the rest of your DoctorController methods)
+        // ========== NOTIFICATIONS ==========
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> MarkNotificationAsRead(int notificationId)
         {
             if (!IsDoctorLoggedIn()) return Json(new { success = false });
-
             var doctorId = HttpContext.Session.GetInt32("DoctorId");
-            var notification = await _context.Notifications
-                .FirstOrDefaultAsync(n => n.NotificationId == notificationId && n.DoctorId == doctorId);
-
+            var notification = await _context.Notifications.FirstOrDefaultAsync(n => n.NotificationId == notificationId && n.DoctorId == doctorId);
             if (notification != null)
             {
                 notification.IsRead = true;
                 await _context.SaveChangesAsync();
                 return Json(new { success = true });
             }
-
             return Json(new { success = false });
         }
 
@@ -354,173 +240,41 @@ namespace Patient_Appointment_Management_System.Controllers
         public async Task<IActionResult> MarkAllNotificationsAsRead()
         {
             if (!IsDoctorLoggedIn()) return Json(new { success = false });
-
             var doctorId = HttpContext.Session.GetInt32("DoctorId");
-            var notifications = await _context.Notifications
-                .Where(n => n.DoctorId == doctorId && !n.IsRead)
-                .ToListAsync();
-
-            foreach (var notification in notifications)
-            {
-                notification.IsRead = true;
-            }
-
+            var notifications = await _context.Notifications.Where(n => n.DoctorId == doctorId && !n.IsRead).ToListAsync();
+            notifications.ForEach(n => n.IsRead = true);
             await _context.SaveChangesAsync();
             return Json(new { success = true });
         }
 
-        // Helper method for creating notifications
-        private async Task CreateNotificationAsync(int? patientId, int? doctorId, string message, string notificationType, string? url = null)
+        // Helper to create a notification
+        private async Task CreateNotificationAsync(int? patientId, int? doctorId, string message, string type, string? url = null)
         {
             var notification = new Notification
             {
                 PatientId = patientId,
                 DoctorId = doctorId,
                 Message = message,
-                NotificationType = notificationType,
+                NotificationType = type,
                 SentDate = DateTime.Now,
                 IsRead = false,
                 Url = url
             };
-
             _context.Notifications.Add(notification);
             await _context.SaveChangesAsync();
         }
 
-        // === AVAILABILITY ACTIONS ===
+        // ========== AVAILABILITY ==========
         [HttpGet]
         public async Task<IActionResult> Availability()
         {
             if (!IsDoctorLoggedIn()) return RedirectToAction("DoctorLogin");
             var doctorId = HttpContext.Session.GetInt32("DoctorId");
-            if (doctorId == null)
-            {
-                TempData["ErrorMessage"] = "Session error. Please log in again.";
-                return RedirectToAction("DoctorLogin");
-            }
+            if (doctorId == null) return RedirectToAction("DoctorLogin");
 
-            var existingSlotsFromDb = await _context.AvailabilitySlots
-                .Include(s => s.BookedByAppointment) // To check IsBooked and potentially get Patient info
-                    .ThenInclude(appt => appt != null ? appt.Patient : null) // Patient can be null if BookedByAppointment is null
-                .Where(s => s.DoctorId == doctorId.Value && s.Date >= DateTime.Today) // Show today and future slots
-                .OrderBy(s => s.Date).ThenBy(s => s.StartTime)
-                .Select(s => new ExistingAvailabilitySlotViewModel
-                {
-                    Id = s.AvailabilitySlotId,
-                    Date = s.Date,
-                    StartTime = s.StartTime,
-                    EndTime = s.EndTime,
-                    IsBooked = s.IsBooked, // This flag is crucial and should be set when an appointment books this slot
-                    PatientNameIfBooked = s.IsBooked && s.BookedByAppointment != null && s.BookedByAppointment.Patient != null
-                                          ? s.BookedByAppointment.Patient.Name
-                                          : (s.IsBooked ? "Booked (Info N/A)" : null), // Handle case where IsBooked but patient info missing
-                    AppointmentIdIfBooked = s.BookedByAppointmentId
-                })
-                .ToListAsync();
-
-            var viewModel = new DoctorManageAvailabilityViewModel
-            {
-                ExistingSlots = existingSlotsFromDb,
-                NewSlot = new AvailabilitySlotInputViewModel { Date = DateTime.Today.AddDays(1) } // Default to tomorrow
-            };
-
-            if (TempData["AvailabilitySuccessMessage"] != null) ViewBag.SuccessMessage = TempData["AvailabilitySuccessMessage"];
-            if (TempData["AvailabilityErrorMessage"] != null) ViewBag.ErrorMessage = TempData["AvailabilityErrorMessage"];
-            return View("~/Views/Doctor/DoctorManageAvailability.cshtml", viewModel);
-        }
-
-        // File: Patient_Appointment_Management_System/Controllers/DoctorController.cs
-
-        // ... (other methods like GET Availability, Dashboard, etc.) ...
-
-        [HttpPost]
-        [ValidateAntiForgeryToken]
-        public async Task<IActionResult> AddAvailability(DoctorManageAvailabilityViewModel model)
-        {
-            if (!IsDoctorLoggedIn()) return RedirectToAction("DoctorLogin");
-            var doctorId = HttpContext.Session.GetInt32("DoctorId");
-            if (doctorId == null)
-            {
-                TempData["AvailabilityErrorMessage"] = "Session error. Please try again.";
-                return RedirectToAction("Availability");
-            }
-
-            var newSlotInput = model.NewSlot;
-
-            // --- BEGIN ADDED LOGGING ---
-            _logger.LogInformation("Attempting to Add Availability for DoctorID: {DoctorId}", doctorId.Value);
-            _logger.LogInformation("Received NewSlot Input - Date: {Date}, StartTime: {StartTime}, EndTime: {EndTime}",
-                                   newSlotInput.Date.ToString("yyyy-MM-dd"), newSlotInput.StartTime.ToString(), newSlotInput.EndTime.ToString());
-            // --- END ADDED LOGGING ---
-
-            if (ModelState.IsValid)
-            {
-                // Custom Validations for the newSlotInput
-                if (newSlotInput.EndTime <= newSlotInput.StartTime)
-                {
-                    // --- BEGIN ADDED LOGGING FOR THIS SPECIFIC ERROR ---
-                    _logger.LogWarning("VALIDATION ERROR: EndTime ({EndTime}) is not after StartTime ({StartTime}) for Date {Date}. DoctorID: {DoctorId}",
-                                       newSlotInput.EndTime.ToString(), newSlotInput.StartTime.ToString(), newSlotInput.Date.ToString("yyyy-MM-dd"), doctorId.Value);
-                    // --- END ADDED LOGGING FOR THIS SPECIFIC ERROR ---
-                    ModelState.AddModelError("NewSlot.EndTime", "End time must be after start time.");
-                }
-
-                if (newSlotInput.Date.Date < DateTime.Today) // Compare Date parts only
-                {
-                    _logger.LogWarning("VALIDATION ERROR: Availability date ({Date}) is in the past. DoctorID: {DoctorId}", newSlotInput.Date.ToString("yyyy-MM-dd"), doctorId.Value);
-                    ModelState.AddModelError("NewSlot.Date", "Availability date cannot be in the past.");
-                }
-
-                // Overlap Check (Only if other validations passed so far or if you want to check regardless)
-                if (ModelState.GetFieldValidationState("NewSlot.EndTime") == Microsoft.AspNetCore.Mvc.ModelBinding.ModelValidationState.Valid &&
-                    ModelState.GetFieldValidationState("NewSlot.Date") == Microsoft.AspNetCore.Mvc.ModelBinding.ModelValidationState.Valid)
-                {
-                    bool overlaps = await _context.AvailabilitySlots.AnyAsync(s =>
-                        s.DoctorId == doctorId.Value &&
-                        s.Date.Date == newSlotInput.Date.Date &&
-                        newSlotInput.StartTime < s.EndTime &&
-                        newSlotInput.EndTime > s.StartTime);
-
-                    if (overlaps)
-                    {
-                        _logger.LogWarning("VALIDATION ERROR: Time slot overlaps with an existing one for Date {Date}, StartTime {StartTime}, EndTime {EndTime}. DoctorID: {DoctorId}",
-                                           newSlotInput.Date.ToString("yyyy-MM-dd"), newSlotInput.StartTime.ToString(), newSlotInput.EndTime.ToString(), doctorId.Value);
-                        ModelState.AddModelError("NewSlot.StartTime", "This time slot overlaps with an existing one for this date.");
-                    }
-                }
-
-
-                if (ModelState.IsValid) // Check again after ALL custom validations
-                {
-                    var availabilitySlot = new AvailabilitySlot
-                    {
-                        DoctorId = doctorId.Value,
-                        Date = newSlotInput.Date.Date,
-                        StartTime = newSlotInput.StartTime,
-                        EndTime = newSlotInput.EndTime,
-                        IsBooked = false
-                    };
-                    _context.AvailabilitySlots.Add(availabilitySlot);
-                    await _context.SaveChangesAsync();
-                    _logger.LogInformation("Successfully added new availability slot ID: {SlotId} for DoctorID: {DoctorId}", availabilitySlot.AvailabilitySlotId, doctorId.Value);
-                    TempData["AvailabilitySuccessMessage"] = "Availability slot added successfully!";
-                    return RedirectToAction("Availability");
-                }
-            }
-            else // ModelState was initially invalid (e.g., required field missing before custom checks)
-            {
-                _logger.LogWarning("AddAvailability initial ModelState was invalid for DoctorID: {DoctorId}. Errors: {Errors}",
-                    doctorId.Value,
-                    string.Join("; ", ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage)));
-            }
-
-            // If ModelState is invalid (either initially or after custom checks), repopulate ExistingSlots and return to view
-            TempData["AvailabilityErrorMessage"] = "Failed to add slot. Please check the errors below.";
-
-            var existingSlotsFromDb = await _context.AvailabilitySlots
-                .Include(s => s.BookedByAppointment)
-                    .ThenInclude(appt => appt != null ? appt.Patient : null)
-                .Where(s => s.DoctorId == doctorId.Value && s.Date >= DateTime.Today)
+            var slots = await _context.AvailabilitySlots
+                .Include(s => s.BookedByAppointment).ThenInclude(a => a.Patient)
+                .Where(s => s.DoctorId == doctorId && s.Date >= DateTime.Today)
                 .OrderBy(s => s.Date).ThenBy(s => s.StartTime)
                 .Select(s => new ExistingAvailabilitySlotViewModel
                 {
@@ -530,17 +284,72 @@ namespace Patient_Appointment_Management_System.Controllers
                     EndTime = s.EndTime,
                     IsBooked = s.IsBooked,
                     PatientNameIfBooked = s.IsBooked && s.BookedByAppointment != null && s.BookedByAppointment.Patient != null
-                                          ? s.BookedByAppointment.Patient.Name
-                                          : (s.IsBooked ? "Booked (Info N/A)" : null),
+                        ? s.BookedByAppointment.Patient.Name
+                        : (s.IsBooked ? "Booked (Info N/A)" : null),
                     AppointmentIdIfBooked = s.BookedByAppointmentId
-                })
-                .ToListAsync();
+                }).ToListAsync();
 
-            model.ExistingSlots = existingSlotsFromDb;
+            var viewModel = new DoctorManageAvailabilityViewModel
+            {
+                ExistingSlots = slots,
+                NewSlot = new AvailabilitySlotInputViewModel { Date = DateTime.Today.AddDays(1) }
+            };
+            ViewBag.SuccessMessage = TempData["AvailabilitySuccessMessage"];
+            ViewBag.ErrorMessage = TempData["AvailabilityErrorMessage"];
+            return View("~/Views/Doctor/DoctorManageAvailability.cshtml", viewModel);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> AddAvailability(DoctorManageAvailabilityViewModel model)
+        {
+            if (!IsDoctorLoggedIn()) return RedirectToAction("DoctorLogin");
+            var doctorId = HttpContext.Session.GetInt32("DoctorId");
+            if (doctorId == null) return RedirectToAction("Availability");
+
+            var slot = model.NewSlot;
+            if (ModelState.IsValid)
+            {
+                if (slot.EndTime <= slot.StartTime)
+                    ModelState.AddModelError("NewSlot.EndTime", "End time must be after start time.");
+                if (slot.Date.Date < DateTime.Today)
+                    ModelState.AddModelError("NewSlot.Date", "Date cannot be in the past.");
+                bool overlaps = await _context.AvailabilitySlots.AnyAsync(s =>
+                    s.DoctorId == doctorId && s.Date.Date == slot.Date.Date &&
+                    slot.StartTime < s.EndTime && slot.EndTime > s.StartTime);
+                if (overlaps)
+                    ModelState.AddModelError("NewSlot.StartTime", "This time slot overlaps with an existing one.");
+                if (ModelState.IsValid)
+                {
+                    var availabilitySlot = new AvailabilitySlot
+                    {
+                        DoctorId = doctorId.Value,
+                        Date = slot.Date.Date,
+                        StartTime = slot.StartTime,
+                        EndTime = slot.EndTime,
+                        IsBooked = false
+                    };
+                    _context.AvailabilitySlots.Add(availabilitySlot);
+                    await _context.SaveChangesAsync();
+                    TempData["AvailabilitySuccessMessage"] = "Slot added!";
+                    return RedirectToAction("Availability");
+                }
+            }
+            TempData["AvailabilityErrorMessage"] = "Failed to add slot. Please check the errors.";
+            model.ExistingSlots = await _context.AvailabilitySlots
+                .Where(s => s.DoctorId == doctorId && s.Date >= DateTime.Today)
+                .OrderBy(s => s.Date).ThenBy(s => s.StartTime)
+                .Select(s => new ExistingAvailabilitySlotViewModel
+                {
+                    Id = s.AvailabilitySlotId,
+                    Date = s.Date,
+                    StartTime = s.StartTime,
+                    EndTime = s.EndTime,
+                    IsBooked = s.IsBooked
+                }).ToListAsync();
             return View("~/Views/Doctor/DoctorManageAvailability.cshtml", model);
         }
 
-        // ... (other methods like DeleteAvailability, GET Availability, Dashboard, etc.) ...
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> DeleteAvailability(int slotId)
@@ -549,67 +358,28 @@ namespace Patient_Appointment_Management_System.Controllers
             var doctorId = HttpContext.Session.GetInt32("DoctorId");
             if (doctorId == null) return Json(new { success = false, message = "Session error." });
 
-            var slotToDelete = await _context.AvailabilitySlots
-                                       .FirstOrDefaultAsync(s => s.AvailabilitySlotId == slotId && s.DoctorId == doctorId.Value);
+            var slot = await _context.AvailabilitySlots.FirstOrDefaultAsync(s => s.AvailabilitySlotId == slotId && s.DoctorId == doctorId);
+            if (slot == null) return Json(new { success = false, message = "Slot not found." });
+            if (slot.IsBooked) return Json(new { success = false, message = "Cannot delete a booked slot." });
+            if (slot.Date < DateTime.Today || (slot.Date == DateTime.Today && slot.StartTime < DateTime.Now.TimeOfDay))
+                return Json(new { success = false, message = "Cannot delete past or active slots." });
 
-            if (slotToDelete == null)
-            {
-                return Json(new { success = false, message = "Slot not found or access denied." });
-            }
-
-            // Check IsBooked flag first
-            if (slotToDelete.IsBooked)
-            {
-                // Optionally, double-check if an appointment is truly linked via BookedAvailabilitySlotId
-                var linkedAppointment = await _context.Appointments.FirstOrDefaultAsync(a => a.BookedAvailabilitySlotId == slotToDelete.AvailabilitySlotId);
-                if (linkedAppointment != null)
-                {
-                    return Json(new { success = false, message = "Cannot delete a booked availability slot. The appointment must be cancelled first." });
-                }
-                // If IsBooked is true but no appointment found, it's an inconsistency. Log it.
-                _logger.LogWarning("Slot {SlotId} for doctor {DoctorId} is marked IsBooked but no Appointment.BookedAvailabilitySlotId points to it. Allowing deletion with caution.", slotToDelete.AvailabilitySlotId, doctorId.Value);
-            }
-
-
-            if (slotToDelete.Date < DateTime.Today || (slotToDelete.Date == DateTime.Today && slotToDelete.StartTime < DateTime.Now.TimeOfDay))
-            {
-                return Json(new { success = false, message = "Cannot delete past or currently active availability slots." });
-            }
-
-            try
-            {
-                _context.AvailabilitySlots.Remove(slotToDelete);
-                await _context.SaveChangesAsync();
-                return Json(new { success = true, message = "Availability slot deleted successfully!" });
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error deleting availability slot ID {SlotId} for DoctorId {DoctorId}", slotId, doctorId.Value);
-                return Json(new { success = false, message = "An error occurred while deleting the slot." });
-            }
+            _context.AvailabilitySlots.Remove(slot);
+            await _context.SaveChangesAsync();
+            return Json(new { success = true, message = "Slot deleted!" });
         }
 
-
-        // === VIEW ALL APPOINTMENTS FOR DOCTOR ===
+        // ========== VIEW APPOINTMENTS ==========
         [HttpGet]
         public async Task<IActionResult> DoctorViewAppointment()
         {
-            if (!IsDoctorLoggedIn())
-            {
-                TempData["ErrorMessage"] = "You need to log in as a doctor to view appointments.";
-                return RedirectToAction("DoctorLogin");
-            }
-
+            if (!IsDoctorLoggedIn()) return RedirectToAction("DoctorLogin");
             var doctorId = HttpContext.Session.GetInt32("DoctorId");
-            if (doctorId == null)
-            {
-                TempData["ErrorMessage"] = "Session error. Please log in again.";
-                return RedirectToAction("DoctorLogin");
-            }
+            if (doctorId == null) return RedirectToAction("DoctorLogin");
 
-            var allAppointments = await _context.Appointments
+            var appointments = await _context.Appointments
                 .Include(a => a.Patient)
-                .Where(a => a.DoctorId == doctorId.Value)
+                .Where(a => a.DoctorId == doctorId)
                 .OrderByDescending(a => a.AppointmentDateTime)
                 .Select(a => new AppointmentSummaryViewModel
                 {
@@ -618,16 +388,17 @@ namespace Patient_Appointment_Management_System.Controllers
                     AppointmentDateTime = a.AppointmentDateTime,
                     Status = a.Status,
                     Issue = a.Issue
-                })
-                .ToListAsync();
+                }).ToListAsync();
 
-                return View("~/Views/Doctor/DoctorViewAppointment.cshtml", allAppointments);
-            }
+            return View("~/Views/Doctor/DoctorViewAppointment.cshtml", appointments);
+        }
 
-
-        // === DOCTOR FORGOT PASSWORD ===
+        // ========== FORGOT PASSWORD ==========
         [HttpGet]
-        public IActionResult DoctorForgotPassword() => View("~/Views/Account/DoctorForgotPassword.cshtml", new DoctorForgotPasswordViewModel());
+        public IActionResult DoctorForgotPassword()
+        {
+            return View("~/Views/Account/DoctorForgotPassword.cshtml", new DoctorForgotPasswordViewModel());
+        }
 
         [HttpPost]
         [ValidateAntiForgeryToken]
@@ -635,170 +406,78 @@ namespace Patient_Appointment_Management_System.Controllers
         {
             if (ModelState.IsValid)
             {
-                var doctorExists = await _context.Doctors.AnyAsync(d => d.Email == model.Email);
-                _logger.LogInformation($"Forgot password attempt for email: {model.Email}. Doctor exists: {doctorExists}");
-                TempData["ForgotPasswordMessage"] = "If an account with that email address exists, a password reset link has been sent.";
+                TempData["ForgotPasswordMessage"] = "If an account with that email exists, a reset link has been sent.";
                 return RedirectToAction("DoctorLogin");
             }
             return View("~/Views/Account/DoctorForgotPassword.cshtml", model);
         }
 
-        // === LOGOUT ===
+        // ========== LOGOUT ==========
         [HttpPost]
         [ValidateAntiForgeryToken]
         public IActionResult Logout()
         {
-            var doctorName = HttpContext.Session.GetString("DoctorName");
             HttpContext.Session.Clear();
-            _logger.LogInformation($"Doctor {doctorName ?? "Unknown"} logged out successfully.");
-            //TempData["DoctorLogoutMessage"] = "You have been successfully logged out.";
             return RedirectToAction("Index", "Home");
-
-
         }
-        // Paste this method into DoctorController.cs
+
+        // ========== MARK APPOINTMENT AS COMPLETED ==========
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> MarkAsCompleted(int appointmentId)
         {
-            if (!IsDoctorLoggedIn())
-            {
-                TempData["ErrorMessage"] = "You must be logged in to perform this action.";
-                return RedirectToAction("DoctorLogin");
-            }
-
+            if (!IsDoctorLoggedIn()) return RedirectToAction("DoctorLogin");
             var doctorId = HttpContext.Session.GetInt32("DoctorId");
-            if (doctorId == null)
-            {
-                TempData["ErrorMessage"] = "Session error. Please log in again.";
-                return RedirectToAction("DoctorLogin");
-            }
+            if (doctorId == null) return RedirectToAction("DoctorLogin");
 
-            var appointment = await _context.Appointments
-                .Include(a => a.Patient)
-                .FirstOrDefaultAsync(a => a.AppointmentId == appointmentId && a.DoctorId == doctorId.Value);
-
-            if (appointment == null)
+            var appointment = await _context.Appointments.Include(a => a.Patient)
+                .FirstOrDefaultAsync(a => a.AppointmentId == appointmentId && a.DoctorId == doctorId);
+            if (appointment == null || appointment.AppointmentDateTime > DateTime.Now)
             {
-                TempData["AvailabilityErrorMessage"] = "Appointment not found or you do not have permission to modify it.";
+                TempData["AvailabilityErrorMessage"] = "Cannot mark as completed.";
                 return RedirectToAction("DoctorViewAppointment");
             }
-
-            if (appointment.AppointmentDateTime > DateTime.Now)
-            {
-                TempData["AvailabilityErrorMessage"] = "Cannot mark a future appointment as completed.";
-                return RedirectToAction("DoctorViewAppointment");
-            }
-
-            try
-            {
-                appointment.Status = "Completed";
-
-                await CreateNotificationAsync(
-                    patientId: appointment.PatientId,
-                    doctorId: null,
-                    message: $"Your appointment on {appointment.AppointmentDateTime:MMM dd, yyyy 'at' hh:mm tt} has been marked as completed by your doctor.",
-                    notificationType: "AppointmentCompleted",
-                    url: "/Patient/PatientDashboard" // Or "/Patient/ViewAppointments"
-                );
-
-                await _context.SaveChangesAsync();
-
-                _logger.LogInformation($"Appointment {appointmentId} marked as 'Completed' by Doctor {doctorId}");
-                TempData["AvailabilitySuccessMessage"] = "Appointment successfully marked as completed.";
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error marking appointment {AppointmentId} as completed for Doctor {DoctorId}", appointmentId, doctorId);
-                TempData["AvailabilityErrorMessage"] = "An error occurred while updating the appointment.";
-            }
-
+            appointment.Status = "Completed";
+            await CreateNotificationAsync(appointment.PatientId, null,
+                $"Your appointment on {appointment.AppointmentDateTime:MMM dd, yyyy 'at' hh:mm tt} has been marked as completed.",
+                "AppointmentCompleted", "/Patient/PatientDashboard");
+            await _context.SaveChangesAsync();
+            TempData["AvailabilitySuccessMessage"] = "Appointment marked as completed.";
             return RedirectToAction("DoctorViewAppointment");
         }
 
-
-
-        // Add this method to your DoctorController class
-
+        // ========== CANCEL APPOINTMENT ==========
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> CancelAppointment(int appointmentId)
         {
-            if (!IsDoctorLoggedIn())
-            {
-                TempData["ErrorMessage"] = "You need to log in as a doctor to cancel appointments.";
-                return RedirectToAction("DoctorLogin");
-            }
-
+            if (!IsDoctorLoggedIn()) return RedirectToAction("DoctorLogin");
             var doctorId = HttpContext.Session.GetInt32("DoctorId");
-            if (doctorId == null)
-            {
-                TempData["ErrorMessage"] = "Session error. Please log in again.";
-                return RedirectToAction("DoctorLogin");
-            }
+            if (doctorId == null) return RedirectToAction("DoctorLogin");
 
-            // Find the appointment
             var appointment = await _context.Appointments
                 .Include(a => a.Patient)
                 .Include(a => a.BookedAvailabilitySlot)
-                .FirstOrDefaultAsync(a => a.AppointmentId == appointmentId && a.DoctorId == doctorId.Value);
+                .FirstOrDefaultAsync(a => a.AppointmentId == appointmentId && a.DoctorId == doctorId);
 
-            if (appointment == null)
+            if (appointment == null || appointment.AppointmentDateTime < DateTime.Now || appointment.Status == "Cancelled")
             {
-                TempData["AvailabilityErrorMessage"] = "Appointment not found or you don't have permission to cancel it.";
+                TempData["AvailabilityErrorMessage"] = "Cannot cancel this appointment.";
                 return RedirectToAction("DoctorViewAppointment");
             }
 
-            // Check if appointment is in the future
-            if (appointment.AppointmentDateTime < DateTime.Now)
+            appointment.Status = "Cancelled";
+            if (appointment.BookedAvailabilitySlot != null)
             {
-                TempData["AvailabilityErrorMessage"] = "Cannot cancel past appointments.";
-                return RedirectToAction("DoctorViewAppointment");
+                appointment.BookedAvailabilitySlot.IsBooked = false;
+                appointment.BookedAvailabilitySlot.BookedByAppointmentId = null;
             }
-
-            // Check if already cancelled
-            if (appointment.Status == "Cancelled")
-            {
-                TempData["AvailabilityErrorMessage"] = "This appointment is already cancelled.";
-                return RedirectToAction("DoctorViewAppointment");
-            }
-
-            try
-            {
-                // Update appointment status
-                appointment.Status = "Cancelled";
-
-                // If appointment had a booked availability slot, free it up
-                if (appointment.BookedAvailabilitySlot != null)
-                {
-                    appointment.BookedAvailabilitySlot.IsBooked = false;
-                    appointment.BookedAvailabilitySlot.BookedByAppointmentId = null;
-                }
-
-                // Create notification for patient
-                await CreateNotificationAsync(
-                    patientId: appointment.PatientId,
-                    doctorId: null,
-                    message: $"Your appointment with Dr. {HttpContext.Session.GetString("DoctorName")} on {appointment.AppointmentDateTime.ToString("MMM dd, yyyy hh:mm tt")} has been cancelled by the doctor.",
-                    notificationType: "AppointmentCancelled",
-                    url: "/Patient/ViewAppointments"
-                );
-
-                await _context.SaveChangesAsync();
-
-                _logger.LogInformation($"Appointment {appointmentId} cancelled by Doctor {doctorId}");
-                TempData["AvailabilitySuccessMessage"] = "Appointment cancelled successfully.";
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error cancelling appointment {AppointmentId} for Doctor {DoctorId}", appointmentId, doctorId);
-                TempData["AvailabilityErrorMessage"] = "An error occurred while cancelling the appointment.";
-            }
-
+            await CreateNotificationAsync(appointment.PatientId, null,
+                $"Your appointment with Dr. {HttpContext.Session.GetString("DoctorName")} on {appointment.AppointmentDateTime:MMM dd, yyyy hh:mm tt} has been cancelled.",
+                "AppointmentCancelled", "/Patient/ViewAppointments");
+            await _context.SaveChangesAsync();
+            TempData["AvailabilitySuccessMessage"] = "Appointment cancelled.";
             return RedirectToAction("DoctorViewAppointment");
         }
-
     }
-
-
 }

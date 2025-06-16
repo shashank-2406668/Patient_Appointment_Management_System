@@ -12,10 +12,6 @@ namespace Patient_Appointment_Management_System.Utils
         private static readonly HashAlgorithmName Algorithm = HashAlgorithmName.SHA256;
         private const char SaltDelimiter = ';';
 
-        // This 'BCrypt' property seems unused with the current Rfc2898DeriveBytes implementation.
-        // If you intend to use BCrypt, the methods below should use a BCrypt library.
-        // For now, I'm keeping it as you provided, but noting this.
-        public static object BCrypt { get; private set; }
 
 
         public static string HashPassword(string password)

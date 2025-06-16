@@ -12,13 +12,8 @@ using Patient_Appointment_Management_System.Data;
 namespace Patient_Appointment_Management_System.Migrations
 {
     [DbContext(typeof(PatientAppointmentDbContext))]
-<<<<<<<< HEAD:Patient Appointment Management System/Migrations/20250613072729_InitialSchema.Designer.cs
-    [Migration("20250613072729_InitialSchema")]
-    partial class InitialSchema
-========
-    [Migration("20250614075222_initialschema")]
-    partial class initialschema
->>>>>>>> 656f58a9165b0670994aefdf89c2b8d422ae03db:Patient Appointment Management System/Migrations/20250614075222_initialschema.Designer.cs
+    [Migration("20250616035834_initialSchema")]
+    partial class initialSchema
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)

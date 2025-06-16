@@ -9,8 +9,7 @@ namespace Patient_Appointment_Management_System.Controllers
     {
         public IActionResult Index()
         {
-            // This will naturally look for Views/Home/Index.cshtml
-            // but to be explicit like other controllers with this structure:
+
             return View("~/Views/Home/Index.cshtml");
         }
 
@@ -22,7 +21,7 @@ namespace Patient_Appointment_Management_System.Controllers
         [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
         public IActionResult Error()
         {
-            // Assuming you have an Error.cshtml in Views/Home/
+           
             return View("~/Views/Home/Error.cshtml", new ErrorViewModel { RequestId = Activity.Current?.Id ?? HttpContext.TraceIdentifier });
         }
     }

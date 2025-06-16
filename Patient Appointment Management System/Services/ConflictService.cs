@@ -1,127 +1,92 @@
-﻿// File: Services/ConflictService.cs
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Patient_Appointment_Management_System.Data;
 using Patient_Appointment_Management_System.Models;
 using Patient_Appointment_Management_System.ViewModels;
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
 namespace Patient_Appointment_Management_System.Services
 {
+    // Service to find and resolve appointment conflicts
     public class ConflictService : IConflictService
     {
         private readonly PatientAppointmentDbContext _context;
-        private static int _tempConflictIdCounter = 0;
+        private static int _conflictId = 0;
 
         public ConflictService(PatientAppointmentDbContext context)
         {
             _context = context;
         }
 
+        // Find all scheduling conflicts (doctor double-booked)
         public async Task<List<SchedulingConflictViewModel>> GetActiveConflictsAsync(int maxCount = 0)
         {
-            // Step 1: Identify DoctorId and AppointmentDateTime combinations that have more than one appointment (potential conflicts)
-            var conflictingGroupKeys = await _context.Appointments
-                // .Where(a => a.Status == "Scheduled") // Add if you have a status to filter by
+            // Find all (DoctorId, Time) pairs with more than one appointment
+            var conflictKeys = await _context.Appointments
                 .GroupBy(a => new { a.DoctorId, a.AppointmentDateTime })
-                .Where(g => g.Count() > 1) // Filter groups that have more than one appointment
-                .Select(g => g.Key) // Select only the DoctorId and AppointmentDateTime
+                .Where(g => g.Count() > 1)
+                .Select(g => g.Key)
                 .ToListAsync();
 
-            if (!conflictingGroupKeys.Any())
-            {
-                return new List<SchedulingConflictViewModel>(); // No conflicts found
-            }
+            var conflicts = new List<SchedulingConflictViewModel>();
+            var seenPairs = new HashSet<string>();
 
-            // Step 2: Fetch all appointments that match these conflicting group keys
-            // We build a list of expressions to use in an OR condition.
-            // This is a bit more complex to build dynamically but can be efficient.
-            // A simpler, though potentially less performant for many keys, would be multiple .Where clauses or iterating and querying.
-
-            // Let's fetch appointments that fall into these conflicting slots.
-            // We'll do the final pairing in memory to avoid overly complex EF translation.
-            var potentiallyConflictingAppointments = new List<Appointment>();
-            foreach (var key in conflictingGroupKeys)
+            foreach (var key in conflictKeys)
             {
-                var appointmentsInSlot = await _context.Appointments
+                // Get all appointments for this doctor and time
+                var appts = await _context.Appointments
                     .Include(a => a.Doctor)
                     .Include(a => a.Patient)
                     .Where(a => a.DoctorId == key.DoctorId && a.AppointmentDateTime == key.AppointmentDateTime)
-                    // .Where(a => a.Status == "Scheduled") // Re-apply status filter if needed
                     .ToListAsync();
-                potentiallyConflictingAppointments.AddRange(appointmentsInSlot);
-            }
 
-            // Ensure we only have unique appointments if a slot had more than 2 (though GroupBy above should handle this for pairs)
-            // Grouping again in memory by Doctor and Time ensures we process actual conflict sets
-            var inMemoryConflictGroups = potentiallyConflictingAppointments
-                .GroupBy(a => new {
-                    a.DoctorId,
-                    DoctorName = a.Doctor?.Name ?? "Unknown Doctor", // Use ?. for safety
-                    a.AppointmentDateTime
-                })
-                .Where(g => g.Count() > 1); // Re-affirm it's a conflict group
-
-            var conflicts = new List<SchedulingConflictViewModel>();
-            var processedAppointmentPairs = new HashSet<string>();
-
-            foreach (var group in inMemoryConflictGroups)
-            {
-                var appointmentsInGroup = group.ToList();
-                for (int i = 0; i < appointmentsInGroup.Count; i++)
+                // Compare each pair in the group
+                for (int i = 0; i < appts.Count; i++)
                 {
-                    for (int j = i + 1; j < appointmentsInGroup.Count; j++)
+                    for (int j = i + 1; j < appts.Count; j++)
                     {
-                        var appt1 = appointmentsInGroup[i];
-                        var appt2 = appointmentsInGroup[j];
+                        var a1 = appts[i];
+                        var a2 = appts[j];
+                        string pairKey = a1.AppointmentId < a2.AppointmentId
+                            ? $"{a1.AppointmentId}-{a2.AppointmentId}"
+                            : $"{a2.AppointmentId}-{a1.AppointmentId}";
+                        if (seenPairs.Contains(pairKey)) continue;
+                        seenPairs.Add(pairKey);
 
-                        string pairKey = appt1.AppointmentId < appt2.AppointmentId ?
-                                         $"{appt1.AppointmentId}-{appt2.AppointmentId}" :
-                                         $"{appt2.AppointmentId}-{appt1.AppointmentId}";
-
-                        if (processedAppointmentPairs.Contains(pairKey)) continue;
-                        processedAppointmentPairs.Add(pairKey);
-
-                        _tempConflictIdCounter++;
-
+                        _conflictId++;
                         conflicts.Add(new SchedulingConflictViewModel
                         {
-                            ConflictId = _tempConflictIdCounter,
-                            DoctorName = group.Key.DoctorName,
-                            ConflictTime = group.Key.AppointmentDateTime,
-                            Appointment1Id = appt1.AppointmentId,
-                            Patient1Name = appt1.Patient?.Name ?? "Unknown Patient",
-                            Appointment1Details = $"Appt. {appt1.AppointmentId} for {(appt1.Patient?.Name ?? "Unknown Patient")}",
-                            Appointment2Id = appt2.AppointmentId,
-                            Patient2Name = appt2.Patient?.Name ?? "Unknown Patient",
-                            Appointment2Details = $"Appt. {appt2.AppointmentId} for {(appt2.Patient?.Name ?? "Unknown Patient")}",
-                            ConflictDetails = $"Doctor {group.Key.DoctorName} is double booked at this time.",
-                            Message = $"Scheduling conflict detected for Dr. {group.Key.DoctorName} at {group.Key.AppointmentDateTime.ToShortTimeString()}"
+                            ConflictId = _conflictId,
+                            DoctorName = a1.Doctor?.Name ?? "Unknown Doctor",
+                            ConflictTime = a1.AppointmentDateTime,
+                            Appointment1Id = a1.AppointmentId,
+                            Patient1Name = a1.Patient?.Name ?? "Unknown Patient",
+                            Appointment1Details = $"Appt. {a1.AppointmentId} for {a1.Patient?.Name ?? "Unknown"}",
+                            Appointment2Id = a2.AppointmentId,
+                            Patient2Name = a2.Patient?.Name ?? "Unknown Patient",
+                            Appointment2Details = $"Appt. {a2.AppointmentId} for {a2.Patient?.Name ?? "Unknown"}",
+                            ConflictDetails = $"Doctor {a1.Doctor?.Name ?? "Unknown"} is double booked.",
+                            Message = $"Conflict for Dr. {a1.Doctor?.Name ?? "Unknown"} at {a1.AppointmentDateTime:t}"
                         });
                     }
                 }
             }
 
-            var orderedConflicts = conflicts.OrderByDescending(c => c.ConflictTime).ThenBy(c => c.DoctorName);
-            return maxCount > 0 ? orderedConflicts.Take(maxCount).ToList() : orderedConflicts.ToList();
+            // Return all or just the first maxCount conflicts
+            var ordered = conflicts.OrderByDescending(c => c.ConflictTime).ThenBy(c => c.DoctorName);
+            return maxCount > 0 ? ordered.Take(maxCount).ToList() : ordered.ToList();
         }
 
+        // Cancel an appointment to resolve a conflict
         public async Task<bool> ResolveConflictByCancellingAppointmentAsync(int appointmentId)
         {
             if (appointmentId <= 0) return false;
-
-            var appointmentToCancel = await _context.Appointments
-                                                .FirstOrDefaultAsync(a => a.AppointmentId == appointmentId);
-            if (appointmentToCancel == null) return false;
-
-            _context.Appointments.Remove(appointmentToCancel);
-            try
-            {
-                return await _context.SaveChangesAsync() > 0;
-            }
-            catch (DbUpdateException) { return false; }
+            var appt = await _context.Appointments.FirstOrDefaultAsync(a => a.AppointmentId == appointmentId);
+            if (appt == null) return false;
+            _context.Appointments.Remove(appt);
+            try { return await _context.SaveChangesAsync() > 0; }
+            catch { return false; }
         }
     }
 }
