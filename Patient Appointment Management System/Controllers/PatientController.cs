@@ -453,7 +453,7 @@ namespace Patient_Appointment_Management_System.Controllers
         }
 
 
-        // === PATIENT LOGOUT ===
+        //PATIENT LOGOUT
         [HttpPost]
         [ValidateAntiForgeryToken]
         public IActionResult PatientLogout()
@@ -463,7 +463,7 @@ namespace Patient_Appointment_Management_System.Controllers
                 var patientName = HttpContext.Session.GetString("PatientName");
                 HttpContext.Session.Clear();
                 _logger.LogInformation($"Patient {patientName ?? "Unknown"} logged out successfully.");
-                TempData["GlobalSuccessMessage"] = "You have been successfully logged out.";
+                //TempData["GlobalSuccessMessage"] = "You have been successfully logged out.";
                 return RedirectToAction("Index", "Home");
             }
             catch (Exception ex)
@@ -476,7 +476,7 @@ namespace Patient_Appointment_Management_System.Controllers
 
 
 
-        // === BOOK APPOINTMENT ACTIONS (REFINED) ===
+        //BOOK APPOINTMENT ACTIONS
         [HttpGet]
         public async Task<IActionResult> BookAppointment()
         {
@@ -536,7 +536,7 @@ namespace Patient_Appointment_Management_System.Controllers
             }
         }
 
-        // REPLACE your old BookAppointment [HttpPost] method with this one
+        
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> BookAppointment(BookAppointmentViewModel model)
@@ -552,8 +552,6 @@ namespace Patient_Appointment_Management_System.Controllers
                 TempData["ErrorMessage"] = "Session error. Please log in again.";
                 return RedirectToAction("PatientLogin");
             }
-
-            // --- All your validation logic is good, we keep it ---
             if (model.SelectedAvailabilitySlotId <= 0) { ModelState.AddModelError(nameof(model.SelectedAvailabilitySlotId), "Please select an available time slot."); }
             if (model.DoctorId <= 0) { ModelState.AddModelError(nameof(model.DoctorId), "Please select a doctor."); }
             if (model.AppointmentDate < DateTime.Today) { ModelState.AddModelError(nameof(model.AppointmentDate), "Appointment date cannot be in the past."); }
@@ -578,8 +576,6 @@ namespace Patient_Appointment_Management_System.Controllers
                 await RepopulateBookAppointmentViewModelForPostErrorAsync(model);
                 return View("~/Views/Patient/BookAppointment.cshtml", model);
             }
-
-            // --- More of your good validation logic ---
             if (chosenSlot.Date.Date == DateTime.Today && chosenSlot.StartTime <= DateTime.Now.TimeOfDay) { /* ... error handling ... */ }
             var patientAppointments = await _context.Appointments.Where(a => a.PatientId == patientId.Value && a.Status != "Cancelled" && a.Status != "Completed").ToListAsync();
             // ... your conflict check logic here ...
@@ -674,14 +670,14 @@ namespace Patient_Appointment_Management_System.Controllers
             }
         }
 
-        // === PATIENT FORGOT PASSWORD ===
+        //PATIENT FORGOT PASSWORD
         [HttpGet]
         public IActionResult PatientForgotPassword()
         {
             return View("~/Views/Account/PatientForgotPassword.cshtml", new PatientForgotPasswordViewModel());
         }
 
-        // CONTINUING PatientController.cs ...
+        
 
         [HttpPost]
         [ValidateAntiForgeryToken]
@@ -691,9 +687,6 @@ namespace Patient_Appointment_Management_System.Controllers
             {
                 var patientExists = await _context.Patients.AnyAsync(p => p.Email == model.Email);
                 _logger.LogInformation($"Forgot password attempt for email: {model.Email}. Patient exists: {patientExists}");
-                // In a real application, you would generate a unique, time-sensitive reset token,
-                // save it to the database against the user's record, and email a link containing this token.
-                // For this project, we'll simulate the user-facing part of that flow.
                 TempData["ForgotPasswordMessage"] = "If an account with that email address exists, a password reset link has been sent. Please check your inbox (and spam folder).";
                 return RedirectToAction("PatientLogin");
             }
@@ -775,7 +768,7 @@ namespace Patient_Appointment_Management_System.Controllers
             return RedirectToAction("PatientDashboard");
         }
 
-        // === RESCHEDULE APPOINTMENT ===
+        //RESCHEDULE APPOINTMENT
         [HttpGet]
         public async Task<IActionResult> RescheduleAppointment(int appointmentId)
         {
