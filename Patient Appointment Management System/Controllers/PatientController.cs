@@ -631,7 +631,7 @@ namespace Patient_Appointment_Management_System.Controllers
                 // If anything fails, roll back all changes.
                 await transaction.RollbackAsync();
                 _logger.LogError(ex, "Error booking appointment for slot {SlotId}", chosenSlot?.AvailabilitySlotId);
-                TempData["BookingErrorMessage"] = "An unexpected error occurred. Please try again.";
+                TempData["BookingErrorMessage"] = "The slot you are trying to book has been already cancelled by you.";
                 await RepopulateBookAppointmentViewModelForPostErrorAsync(model);
                 return View("~/Views/Patient/BookAppointment.cshtml", model);
             }
@@ -1052,7 +1052,9 @@ namespace Patient_Appointment_Management_System.Controllers
 
             _context.Notifications.Add(notification);
 
-            // THE FIX: This line was missing. It saves the new notification to the database.
+            // --- THIS IS THE FIX ---
+            // This line was missing. It saves the new notification to the database.
+            // Without it, notifications are created but never stored.
             await _context.SaveChangesAsync();
         }
 

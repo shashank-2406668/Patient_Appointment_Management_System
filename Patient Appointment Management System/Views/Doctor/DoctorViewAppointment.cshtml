@@ -158,27 +158,40 @@
                                         <small class="text-muted">@appointment.Issue</small>
                                     }
                                 </td>
+                                @* In Views/Doctor/DoctorViewAppointment.cshtml *@
                                 <td>
-                                    @if (appointment.AppointmentDateTime > DateTime.Now &&
-                                   appointment.Status != "Cancelled" &&
-                                   appointment.Status != "Completed")
+                                    @if (appointment.Status != "Completed" && appointment.Status != "Cancelled")
                                     {
-                                        <form asp-action="CancelAppointment" asp-controller="Doctor" method="post"
-                                              style="display: inline;">
+                                        <!-- 'Complete' button is now always shown for active appointments -->
+                                        <form asp-action="MarkAsCompleted" asp-controller="Doctor" method="post" class="d-inline me-1">
+                                            @Html.AntiForgeryToken()
                                             <input type="hidden" name="appointmentId" value="@appointment.Id" />
-                                            <button type="submit" class="btn btn-danger btn-sm"
-                                                    onclick="return confirm('Are you sure you want to cancel this appointment with @appointment.PatientName on @appointment.AppointmentDateTime.ToString("MMM dd, yyyy at hh:mm tt")?');">
-                                                <i class="bi bi-x-circle"></i> Cancel
+                                            <button type="submit" class="btn btn-success btn-sm"
+                                                    onclick="return confirm('Are you sure you want to mark this appointment as completed?');">
+                                                <i class="bi bi-check-circle"></i> Complete
                                             </button>
                                         </form>
+
+                                        <!-- 'Cancel' button is still only shown for FUTURE active appointments -->
+                                        @if (appointment.AppointmentDateTime > DateTime.Now)
+                                        {
+                                            <form asp-action="CancelAppointment" asp-controller="Doctor" method="post" class="d-inline">
+                                                @Html.AntiForgeryToken()
+                                                <input type="hidden" name="appointmentId" value="@appointment.Id" />
+                                                <button type="submit" class="btn btn-danger btn-sm"
+                                                        onclick="return confirm('Are you sure you want to cancel this appointment with @appointment.PatientName?');">
+                                                    <i class="bi bi-x-circle"></i> Cancel
+                                                </button>
+                                            </form>
+                                        }
                                     }
                                     else if (appointment.Status == "Cancelled")
                                     {
                                         <span class="text-muted small">Cancelled</span>
                                     }
-                                    else if (appointment.AppointmentDateTime <= DateTime.Now)
+                                    else if (appointment.Status == "Completed")
                                     {
-                                        <span class="text-muted small">Past</span>
+                                        <span class="text-muted small">Completed</span>
                                     }
                                 </td>
                             </tr>

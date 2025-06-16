@@ -589,6 +589,7 @@ namespace Patient_Appointment_Management_System.Controllers
             }
         }
 
+
         // === VIEW ALL APPOINTMENTS FOR DOCTOR ===
         [HttpGet]
         public async Task<IActionResult> DoctorViewAppointment()
@@ -655,6 +656,68 @@ namespace Patient_Appointment_Management_System.Controllers
 
 
         }
+        // Paste this method into DoctorController.cs
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> MarkAsCompleted(int appointmentId)
+        {
+            if (!IsDoctorLoggedIn())
+            {
+                TempData["ErrorMessage"] = "You must be logged in to perform this action.";
+                return RedirectToAction("DoctorLogin");
+            }
+
+            var doctorId = HttpContext.Session.GetInt32("DoctorId");
+            if (doctorId == null)
+            {
+                TempData["ErrorMessage"] = "Session error. Please log in again.";
+                return RedirectToAction("DoctorLogin");
+            }
+
+            var appointment = await _context.Appointments
+                .Include(a => a.Patient)
+                .FirstOrDefaultAsync(a => a.AppointmentId == appointmentId && a.DoctorId == doctorId.Value);
+
+            if (appointment == null)
+            {
+                TempData["AvailabilityErrorMessage"] = "Appointment not found or you do not have permission to modify it.";
+                return RedirectToAction("DoctorViewAppointment");
+            }
+
+            if (appointment.AppointmentDateTime > DateTime.Now)
+            {
+                TempData["AvailabilityErrorMessage"] = "Cannot mark a future appointment as completed.";
+                return RedirectToAction("DoctorViewAppointment");
+            }
+
+            try
+            {
+                appointment.Status = "Completed";
+
+                await CreateNotificationAsync(
+                    patientId: appointment.PatientId,
+                    doctorId: null,
+                    message: $"Your appointment on {appointment.AppointmentDateTime:MMM dd, yyyy 'at' hh:mm tt} has been marked as completed by your doctor.",
+                    notificationType: "AppointmentCompleted",
+                    url: "/Patient/PatientDashboard" // Or "/Patient/ViewAppointments"
+                );
+
+                await _context.SaveChangesAsync();
+
+                _logger.LogInformation($"Appointment {appointmentId} marked as 'Completed' by Doctor {doctorId}");
+                TempData["AvailabilitySuccessMessage"] = "Appointment successfully marked as completed.";
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error marking appointment {AppointmentId} as completed for Doctor {DoctorId}", appointmentId, doctorId);
+                TempData["AvailabilityErrorMessage"] = "An error occurred while updating the appointment.";
+            }
+
+            return RedirectToAction("DoctorViewAppointment");
+        }
+
+
+
         // Add this method to your DoctorController class
 
         [HttpPost]
